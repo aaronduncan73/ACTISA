@@ -60,7 +60,7 @@ $abbreviations = @{
 #     - copy link
 
 # the '2019 ACT Championships and Spring Comp' form on the ACTISA account
-$google_sheet_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRgNgCRaASTXJNBviBQaXmV6D-Wl8YILIWS5JmqupESMlOwkaB4nGeFit7nJQ2qvYfFAv1gAzkpyoL8/pub?output=tsv'
+$google_sheet_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRgNgCRaASTXJNBviBQaXmV6D-Wl8YILIWS5JmqupESMlOwkaB4nGeFit7nJQ2qvYfFAv1gAzkpyoL8/pub?output=xlsx'
 $template_folder = 'C:\Users\aaron\Google Drive\Skating\Skating Templates'
 
 $Competition = "ACT Champs Spring Comp $(Get-Date -Format yyyy)";
@@ -125,9 +125,35 @@ function Publish-SkaterMusicFile
 	#
 	# Get the duration of the song from the metadata
 	#
+	$extension = [System.IO.Path]::GetExtension($filename)
 	try
 	{
 		$music_duration = Get-MusicFileDuration -filename $filename
+		if ($music_duration -eq 'notfound')
+		{
+			# we failed to get the metadata from the file, so try an alternate file extension
+			if ($extension -eq 'mp3')
+			{
+				$newExt = 'm4a'
+			}
+			else
+			{
+				$newExt = 'mp3'
+			}
+			
+			# make a copy of the file with the new file extension
+			$newFilename = [System.IO.Path]::ChangeExtension($filename, $newExt)
+			Copy-Item $filename $newFilename
+			
+			# get the duration of the song from the new file
+			$music_duration = Get-MusicFileDuration -filename $newFilename
+			if ($music_duration -ne 'notfound')
+			{
+				# we got a duration this time, so reference the new file (with the valid extension)
+				$filename = $newFilename
+				$extension = $newExt
+			}
+		}
 	}
 	catch
 	{
@@ -329,8 +355,6 @@ function Publish-EntryMusicFiles
 		
 		$music_fs_file = [System.Web.HttpUtility]::UrlDecode($music_fs_url.Split("/")[-1]);
 		$music_fs_fullpath = [System.IO.Path]::Combine($submission_folder, $music_fs_file)
-		
-		$extension = [System.IO.Path]::GetExtension($music_fs_file)
 		
 		if ((Test-Path -Path $submission_folder -ErrorAction SilentlyContinue) -eq $false)
 		{

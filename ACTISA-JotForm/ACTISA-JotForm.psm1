@@ -879,7 +879,7 @@ function Get-ExtensionAttribute
 					$_.Path -eq $Object
 				} | ForEach-Object {
 					$HashProperties = @{
-						FullName    = $_.Path
+						FullName = $_.Path
 					}
 					foreach ($Attribute in $MyInvocation.BoundParameters.ExtensionAttribute)
 					{
@@ -893,7 +893,7 @@ function Get-ExtensionAttribute
 				$CurrentNameSpace = $ShellObject.NameSpace($Object)
 				$CurrentNameSpace.Items() | ForEach-Object {
 					$HashProperties = @{
-						FullName    = $_.Path
+						FullName = $_.Path
 					}
 					foreach ($Attribute in $MyInvocation.BoundParameters.ExtensionAttribute)
 					{
