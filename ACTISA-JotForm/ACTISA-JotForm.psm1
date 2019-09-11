@@ -101,34 +101,7 @@ function Import-SpreadsheetFile
 	
 	if ($format -eq 'xlsx')
 	{
-		# Create an excel object using the Com interface
-		$objExcel = New-Object -ComObject Excel.Application
-		
-		# Disable the 'visible' property so the document won't open in excel
-		$objExcel.Visible = $false
-		
-		# Open the Excel file and save it in $WorkBook
-		$WorkBook = $objExcel.WorkBooks.Open($filepath)
-		
-		$WorkSheet = $WorkBook.ActiveSheet
-		
-		$numRows = $WorkSheet.UsedRange.Rows.Count
-		$numCols = $WorkSheet.UsedRange.Columns.Count
-		
-		$entries = @()
-		$headerRow = $WorkSheet.Rows.Item(1)
-		for ($r = 2; $r -le $numRows; $r++)
-		{
-			$entryRow = [ordered]@{ }
-			$row = $WorkSheet.Rows.Item($r)
-			for ($c = 1; $c -le $numCols; $c++)
-			{
-				$label = $headerRow.Columns.Item($c).Text
-				$value = $row.Columns.Item($c).Text
-				$entryRow.Add($label, $value)
-			}
-			$entries += [PSCustomObject]$entryRow
-		}
+		$entries = Import-XLSX $filepath
 	}
 	elseif ($format -eq 'tsv')
 	{
@@ -143,6 +116,70 @@ function Import-SpreadsheetFile
 		Write-Error "Invalid Spreadsheet format: $format"
 		$entries = $null
 	}
+	return $entries
+}
+
+<#
+	.SYNOPSIS
+		Import Excel Spreadsheet
+	
+	.DESCRIPTION
+		A detailed description of the Import-XLSX function.
+	
+	.PARAMETER filename
+		A description of the filename parameter.
+	
+	.EXAMPLE
+				PS C:\> Import-XLSX -filename 'Value1'
+	
+	.NOTES
+		Additional information about the function.
+#>
+function Import-XLSX
+{
+	[CmdletBinding()]
+	[OutputType([pscustomobject[]])]
+	param
+	(
+		[Parameter(Mandatory = $true)]
+		[string]$filename
+	)
+	
+	$filepath = (Resolve-Path $filename).Path
+	
+	# Create an excel object using the Com interface
+	$objExcel = New-Object -ComObject Excel.Application
+	
+	# Disable the 'visible' property so the document won't open in excel
+	$objExcel.Visible = $false
+	
+	# Open the Excel file and save it in $WorkBook
+	$WorkBook = $objExcel.WorkBooks.Open($filepath)
+	
+	$WorkSheet = $WorkBook.ActiveSheet
+	
+	$numRows = $WorkSheet.UsedRange.Rows.Count
+	$numCols = $WorkSheet.UsedRange.Columns.Count
+	
+	$entries = @()
+	$headerRow = $WorkSheet.Rows.Item(1)
+	for ($r = 2; $r -le $numRows; $r++)
+	{
+		$entryRow = [ordered]@{ }
+		$row = $WorkSheet.Rows.Item($r)
+		for ($c = 1; $c -le $numCols; $c++)
+		{
+			$label = $headerRow.Columns.Item($c).Text
+			$value = $row.Columns.Item($c).Text
+			$entryRow.Add($label, $value)
+		}
+		$entries += [PSCustomObject]$entryRow
+	}
+	
+	# close excel
+	$WorkBook.Close()
+	$objExcel.Quit()
+	
 	return $entries
 }
 
