@@ -328,9 +328,21 @@ function Invoke-MailMerge
 		
 		if ($extension -match ".pdf")
 		{
-			#$word.ActiveDocument.ExportAsFixedFormat($destfile, 17)
 			$PDF = [Microsoft.Office.Interop.Word.WdSaveFormat]::wdFormatPDF
-			$word.ActiveDocument.SaveAs($destfile, [ref]$PDF)
+			$saved = $false
+			for ($i = 1; $i -le 10; $i++)
+			{
+				try
+				{
+					$word.ActiveDocument.SaveAs($destfile, [ref]$PDF)
+					break
+				}
+				catch
+				{
+					$filename = [System.IO.Path]::GetFileNameWithoutExtension($template) + "-$i" + $extension
+					$destfile = [System.IO.Path]::Combine($destination, $filename)
+				}
+			}
 		}
 		else
 		{
