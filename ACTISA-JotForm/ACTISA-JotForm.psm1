@@ -399,7 +399,6 @@ function Get-MusicFileDuration
 			}
 			elseif ($details -eq 'Length')
 			{
-				Write-Host "details = Length"
 				$length_details = $shellfolder.GetDetailsOf($shellfile, $index)
 				if (-not [string]::IsNullOrEmpty($length_details))
 				{
@@ -407,7 +406,6 @@ function Get-MusicFileDuration
 					$minutes = $length[1].ToString().TrimStart('0')
 					$seconds = $length[2].ToString().TrimStart('0')
 					
-					"MINUTES: $minutes SECONDS: $seconds"
 					if ([int]$minutes -lt 10) { $minutes = '0' + $minutes }
 					if ([int]$seconds -lt 10) { $seconds = '0' + $seconds }
 					
