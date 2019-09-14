@@ -372,8 +372,6 @@ function Get-MusicFileDuration
 		[string]$filename
 	)
 	
-	Write-Host "Getting music file duration for '$filename'"
-	
 	$duration = $null
 	if (Test-Path -Path "$filename" -PathType Leaf -ErrorAction SilentlyContinue)
 	{
