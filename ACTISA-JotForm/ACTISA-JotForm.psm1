@@ -184,6 +184,7 @@ function Import-XLSX
 	[System.Runtime.Interopservices.Marshal]::ReleaseComObject($WorkSheet)
 	[System.Runtime.Interopservices.Marshal]::ReleaseComObject($WorkBook)
 	[System.Runtime.Interopservices.Marshal]::ReleaseComObject($objExcel)
+	[System.GC]::Collect()
 	
 	return $entries
 }
