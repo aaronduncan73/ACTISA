@@ -115,6 +115,7 @@ function Import-SpreadsheetFile
 		$numRows = $WorkSheet.UsedRange.Rows.Count
 		$numCols = $WorkSheet.UsedRange.Columns.Count
 		
+		Write-Host "num rows = $numRows, num cols = $numCols"
 		$entries = @()
 		$headerRow = $WorkSheet.Rows.Item(1)
 		for ($r = 2; $r -le $numRows; $r++)
@@ -364,7 +365,6 @@ function Get-MusicFileDuration
 					$minutes = $length[1].ToString().TrimStart('0')
 					$seconds = $length[2].ToString().TrimStart('0')
 					
-					"MINUTES: $minutes SECONDS: $seconds"
 					if ([int]$minutes -lt 10) { $minutes = '0' + $minutes }
 					if ([int]$seconds -lt 10) { $seconds = '0' + $seconds }
 					
