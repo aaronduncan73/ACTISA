@@ -377,14 +377,13 @@ function Get-MusicFileDuration
 	$duration = $null
 	if (Test-Path -Path "$filename" -PathType Leaf -ErrorAction SilentlyContinue)
 	{
-		$shell = New-Object -COMObject Shell.Application
-		
 		$filepath = (Resolve-Path $filename).Path
-		$folder = Split-Path $filepath
-		$file = Split-Path $filepath -Leaf
-		Write-Host "FILE: $file"
+		$folder   = Split-Path $filepath
+		$file     = Split-Path $filepath -Leaf
+		
+		$shell       = New-Object -COMObject Shell.Application
 		$shellfolder = $shell.Namespace($folder)
-		$shellfile = $shellfolder.ParseName($file)
+		$shellfile   = $shellfolder.ParseName($file)
 		
 		# find the index of "Length" (limited to 1000 extended attributes to stop infinite looping)
 		$index = 0
