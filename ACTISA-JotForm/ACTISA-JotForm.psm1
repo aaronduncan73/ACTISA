@@ -180,6 +180,11 @@ function Import-XLSX
 	$WorkBook.Close()
 	$objExcel.Quit()
 	
+	# release the COM objects
+	[System.Runtime.Interopservices.Marshal]::ReleaseComObject($WorkSheet)
+	[System.Runtime.Interopservices.Marshal]::ReleaseComObject($WorkBook)
+	[System.Runtime.Interopservices.Marshal]::ReleaseComObject($objExcel)
+	
 	return $entries
 }
 
