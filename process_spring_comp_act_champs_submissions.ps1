@@ -272,6 +272,7 @@ function Publish-SkaterMusicFile
 	}
 	else
 	{
+		Write-Host "Copying '$filename' -> '$new_music_path'"
 		Copy-Item -Path $filename $new_music_path -Force -ErrorAction SilentlyContinue
 		if ($? -eq $false)
 		{
@@ -318,119 +319,125 @@ function Publish-EntryMusicFiles
 	)
 	
 	$submission_id = $entry.'Submission ID'
-	$div_field = $entry.'Division'
-	$category = $div_field.Split(";")[0].trim()
-	$division = $div_field.Split(";")[1].trim()
-	$gender = $entry.'Skater 1 Gender:'
-	$music_fs_url = $entry.'FS/FD Music File'
-	$music_sp_url = $entry.'SD/SP/PD1 Music File'
-	$music_pd2_url = $entry.'PD2 Music File'
 	
-	Write-Host "Music FS URL: $music_fs_url"
-	if ($category -match 'Couple')
+	# only process entries with a submission ID
+	if (-not [String]::IsNullOrWhiteSpace($submission_id))
 	{
-		$name = $entry.'Skater 1 Name' + "_" + $entry.'Skater 2 Name';
-	}
-	else
-	{
-		$name = ConvertTo-CapitalizedName -name $entry.'Skater 1 Name'
-	}
-	
-	$submission_folder =
-	(Resolve-Path "$([System.IO.Path]::Combine($submissionFullPath, "${submission_id}_${name}"))*").Path
-	
-	if ([string]::IsNullOrEmpty($submission_folder))
-	{
-		$submission_folder = [System.IO.Path]::Combine($submissionFullPath, "${submission_id}_${name}-")
-	}
-	
-	Write-Host "Name: $name"
-	
-	# half ice divisions don't have music file uploads
-	if (!$category.StartsWith("Aussie Skate (Half"))
-	{
-		# 1. all have a FS
-		# 2. AdvNov/Junior/Senior have a SP
-		# 3. Dance has a PD2 (except Junior/Senior)
+		$div_field = $entry.'Division'
+		Write-Host "DIV_FIELD: '$div_field'"
+		$category = $div_field.Split(";")[0].trim()
+		$division = $div_field.Split(";")[1].trim()
+		$gender = $entry.'Skater 1 Gender:'
+		$music_fs_url = $entry.'FS/FD Music File'
+		$music_sp_url = $entry.'SD/SP/PD1 Music File'
+		$music_pd2_url = $entry.'PD2 Music File'
 		
-		$music_fs_file = [System.Web.HttpUtility]::UrlDecode($music_fs_url.Split("/")[-1]);
-		$music_fs_fullpath = [System.IO.Path]::Combine($submission_folder, $music_fs_file)
-		
-		if ((Test-Path -Path $submission_folder -ErrorAction SilentlyContinue) -eq $false)
+		Write-Host "Music FS URL: $music_fs_url"
+		if ($category -match 'Couple')
 		{
-			New-Item $submission_folder -Type Directory | Out-Null
-		}
-		
-		if ((Test-Path -Path $music_fs_fullpath -ErrorAction SilentlyContinue) -eq $false)
-		{
-			# music file is missing, so download it
-			Get-WebFile -url $music_fs_url -destination $music_fs_fullpath
-		}
-		
-		if ($division -match 'Advanced Novice|Junior|Senior')
-		{
-			$music_sp_file = [System.Web.HttpUtility]::UrlDecode($music_sp_url.Split("/")[-1]);
-			$music_sp_fullpath = [System.IO.Path]::Combine($submission_folder, $music_sp_file)
-			
-			if ((Test-Path -Path $music_sp_fullpath -ErrorAction SilentlyContinue) -eq $false)
-			{
-				# music file is missing, so download it
-				Get-WebFile -url $music_sp_url -destination $music_sp_fullpath
-			}
-			
-			if ($category -match 'Dance')
-			{
-				Publish-SkaterMusicFile -filename $music_fs_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "FS"
-				Publish-SkaterMusicFile -filename $music_sp_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "SP"
-			}
-			else
-			{
-				Publish-SkaterMusicFile -filename $music_fs_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "FD"
-				Publish-SkaterMusicFile -filename $music_sp_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "SD"
-			}
-			
-			if ([String]::IsNullOrEmpty($music_sp_file))
-			{
-				Write-Warning "WARNING: No SD/SP/PD1 Music file provided for $name in category '$category' division '$division'"
-			}
-			else
-			{
-				if ((Test-Path -Path $music_sp_fullpath -ErrorAction SilentlyContinue) -eq $false)
-				{
-					# music file is missing, so download it
-					Get-WebFile -url $entry.'SD/SP/PD1 Music File' -destination $music_sp_fullpath
-				}
-			}
-			
-			# process the file even if it is nonexistent - the result will be a "NOTFOUND" file in the Music folder (so we get alerted)
-			Publish-SkaterMusicFile -filename $music_sp_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "SP"
-		}
-		elseif ($category -match 'Dance')
-		{
-			$music_pd1_file = [System.Web.HttpUtility]::UrlDecode($music_sp_url.Split("/")[-1]);
-			$music_pd1_fullpath = [System.IO.Path]::Combine($submission_folder, $music_pd1_file)
-			$music_pd2_file = [System.Web.HttpUtility]::UrlDecode($music_pd2_url.Split("/")[-1]);
-			$music_pd2_fullpath = [System.IO.Path]::Combine($submission_folder, $music_pd2_file)
-			
-			if ((Test-Path -Path $music_pd1_fullpath -ErrorAction SilentlyContinue) -eq $false)
-			{
-				# music file is missing, so download it
-				Get-WebFile -url $music_sp_url -destination $music_pd1_fullpath
-			}
-			
-			if ((Test-Path -Path $music_pd2_fullpath -ErrorAction SilentlyContinue) -eq $false)
-			{
-				# music file is missing, so download it
-				Get-WebFile -url $music_pd2_url -destination $music_pd2_fullpath
-			}
-			
-			Publish-SkaterMusicFile -filename $music_fs_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "FD"
-			Publish-SkaterMusicFile -filename $music_pd1_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "PD1"
-			Publish-SkaterMusicFile -filename $music_pd2_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "PD2"
+			$name = $entry.'Skater 1 Name' + "_" + $entry.'Skater 2 Name';
 		}
 		else
 		{
-			Publish-SkaterMusicFile -filename $music_fs_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "FS"
+			$name = ConvertTo-CapitalizedName -name $entry.'Skater 1 Name'
+		}
+		
+		$submission_folder =
+		(Resolve-Path "$([System.IO.Path]::Combine($submissionFullPath, "${submission_id}_${name}"))*").Path
+		
+		if ([string]::IsNullOrEmpty($submission_folder))
+		{
+			$submission_folder = [System.IO.Path]::Combine($submissionFullPath, "${submission_id}_${name}-")
+		}
+		
+		Write-Host "Name: $name"
+		
+		# half ice divisions don't have music file uploads
+		if (!$category.StartsWith("Aussie Skate (Half"))
+		{
+			# 1. all have a FS
+			# 2. AdvNov/Junior/Senior have a SP
+			# 3. Dance has a PD2 (except Junior/Senior)
+			
+			$music_fs_file = [System.Web.HttpUtility]::UrlDecode($music_fs_url.Split("/")[-1]);
+			$music_fs_fullpath = [System.IO.Path]::Combine($submission_folder, $music_fs_file)
+			
+			if ((Test-Path -Path $submission_folder -ErrorAction SilentlyContinue) -eq $false)
+			{
+				New-Item $submission_folder -Type Directory | Out-Null
+			}
+			
+			if ((Test-Path -Path $music_fs_fullpath -ErrorAction SilentlyContinue) -eq $false)
+			{
+				# music file is missing, so download it
+				Get-WebFile -url $music_fs_url -destination $music_fs_fullpath
+			}
+			
+			if ($division -match 'Advanced Novice|Junior|Senior')
+			{
+				$music_sp_file = [System.Web.HttpUtility]::UrlDecode($music_sp_url.Split("/")[-1]);
+				$music_sp_fullpath = [System.IO.Path]::Combine($submission_folder, $music_sp_file)
+				
+				if ((Test-Path -Path $music_sp_fullpath -ErrorAction SilentlyContinue) -eq $false)
+				{
+					# music file is missing, so download it
+					Get-WebFile -url $music_sp_url -destination $music_sp_fullpath
+				}
+				
+				if ($category -match 'Dance')
+				{
+					Publish-SkaterMusicFile -filename $music_fs_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "FS"
+					Publish-SkaterMusicFile -filename $music_sp_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "SP"
+				}
+				else
+				{
+					Publish-SkaterMusicFile -filename $music_fs_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "FD"
+					Publish-SkaterMusicFile -filename $music_sp_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "SD"
+				}
+				
+				if ([String]::IsNullOrEmpty($music_sp_file))
+				{
+					Write-Warning "WARNING: No SD/SP/PD1 Music file provided for $name in category '$category' division '$division'"
+				}
+				else
+				{
+					if ((Test-Path -Path $music_sp_fullpath -ErrorAction SilentlyContinue) -eq $false)
+					{
+						# music file is missing, so download it
+						Get-WebFile -url $entry.'SD/SP/PD1 Music File' -destination $music_sp_fullpath
+					}
+				}
+				
+				# process the file even if it is nonexistent - the result will be a "NOTFOUND" file in the Music folder (so we get alerted)
+				Publish-SkaterMusicFile -filename $music_sp_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "SP"
+			}
+			elseif ($category -match 'Dance')
+			{
+				$music_pd1_file = [System.Web.HttpUtility]::UrlDecode($music_sp_url.Split("/")[-1]);
+				$music_pd1_fullpath = [System.IO.Path]::Combine($submission_folder, $music_pd1_file)
+				$music_pd2_file = [System.Web.HttpUtility]::UrlDecode($music_pd2_url.Split("/")[-1]);
+				$music_pd2_fullpath = [System.IO.Path]::Combine($submission_folder, $music_pd2_file)
+				
+				if ((Test-Path -Path $music_pd1_fullpath -ErrorAction SilentlyContinue) -eq $false)
+				{
+					# music file is missing, so download it
+					Get-WebFile -url $music_sp_url -destination $music_pd1_fullpath
+				}
+				
+				if ((Test-Path -Path $music_pd2_fullpath -ErrorAction SilentlyContinue) -eq $false)
+				{
+					# music file is missing, so download it
+					Get-WebFile -url $music_pd2_url -destination $music_pd2_fullpath
+				}
+				
+				Publish-SkaterMusicFile -filename $music_fs_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "FD"
+				Publish-SkaterMusicFile -filename $music_pd1_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "PD1"
+				Publish-SkaterMusicFile -filename $music_pd2_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "PD2"
+			}
+			else
+			{
+				Publish-SkaterMusicFile -filename $music_fs_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "FS"
+			}
 		}
 	}
 }
@@ -1630,7 +1637,16 @@ $schedule_folder    = [System.IO.Path]::Combine($comp_folder, "Schedule")
 Write-Host "Competition Folder: $comp_folder"
 write-host "Music Folder: $music_folder"
 
-$entries = Get-SubmissionEntries -url $google_sheet_url
+$entries = @()
+foreach ($entry in (Get-SubmissionEntries -url $google_sheet_url))
+{
+	# strip out entries with no submission ID
+	if (-not [String]::IsNullOrWhiteSpace($entry.'Submission ID'))
+	{
+		$entries += $entry
+	}
+}
+#$entries = Get-SubmissionEntries -url $google_sheet_url
 
 foreach ($entry in $entries)
 {
