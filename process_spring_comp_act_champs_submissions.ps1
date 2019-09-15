@@ -60,7 +60,7 @@ $abbreviations = @{
 #     - copy link
 
 # the '2019 ACT Championships and Spring Comp' form on the ACTISA account
-$google_sheet_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTIug6019tF7L_bzKkDNaxN-xoQ1Bsv_TknJs_L9r9qG5D0OkU4oetjbb_VqBxoSGTCY2FpOB-k2fWP/pub?output=csv'
+$google_sheet_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQn6ibK7mxw92I6tcaFUbWjtykALU2dWygOBdCRjG_hUKJQmqoFWTtzbD1c6Qa5sDWz0aXpWwdg3YVL/pub?output=csv'
 $template_folder = 'C:\Users\aaron\Google Drive\Skating\Skating Templates'
 
 $Competition = "ACT Champs Spring Comp $(Get-Date -Format yyyy)";
