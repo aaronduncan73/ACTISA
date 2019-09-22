@@ -768,8 +768,8 @@ function New-SkatingSchedule
 	
 	foreach ($div in $divhash.Keys | Sort-Object)
 	{
-		$category = $div.Split("; ")[0].trim()
-		$division = $div.Split("; ")[1].trim()
+		$category = $div.Split(";")[0].trim()
+		$division = $div.Split(";")[1].trim()
 		
 		if ($category.StartsWith("Aussie Skate (Half"))
 		{
@@ -955,8 +955,8 @@ function New-DivisionCountsSpreadsheet
 	
 	foreach ($div in $divhash.Keys | Sort-Object)
 	{
-		$category = $div.Split("; ")[0].trim()
-		$division = $div.Split("; ")[1].trim()
+		$category = $div.Split(";")[0].trim()
+		$division = $div.Split(";")[1].trim()
 		
 		if ($category -match "Adult | Dance")
 		{
@@ -1105,8 +1105,8 @@ function New-EngravingSchedule
 	
 	foreach ($div in $divhash.Keys | Sort-Object)
 	{
-		$category = $div.Split("; ")[0].trim()
-		$division = $div.Split("; ")[1].trim()
+		$category = $div.Split(";")[0].trim()
+		$division = $div.Split(";")[1].trim()
 		
 		if ($category -match "Adult | Dance")
 		{
@@ -1384,8 +1384,8 @@ function New-VolunteerSpreadsheet
 	{
 		if (-not [String]::IsNullOrEmpty($entry.'I am able to assist with the following tasks:'))
 		{
-			$category = $entry.Division.Split("; ")[0].trim()
-			$division = $entry.Division.Split("; ")[1].trim()
+			$category = $entry.Division.Split(";")[0].trim()
+			$division = $entry.Division.Split(";")[1].trim()
 			
 			if ($category -eq "Adult")
 			{
@@ -1448,8 +1448,8 @@ function New-PaymentSpreadsheet
 	$rows = @()
 	foreach ($entry in $entries)
 	{
-		$category = $entry.Division.Split("; ")[0].trim()
-		$division = $entry.Division.Split("; ")[1].trim()
+		$category = $entry.Division.Split(";")[0].trim()
+		$division = $entry.Division.Split(";")[1].trim()
 		
 		if ($category -eq "Adult")
 		{
@@ -1585,7 +1585,7 @@ function New-PhotoPermissionList
 	$rows = @()
 	foreach ($entry in $entries)
 	{
-		$catdiv = $entry.Division.Split("; ")
+		$catdiv = $entry.Division.Split(";")
 		$category = $catdiv[0].trim()
 		$division = $catdiv[1].trim()
 		$rows += (@{
