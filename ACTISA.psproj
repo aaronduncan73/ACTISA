@@ -1,0 +1,22 @@
+﻿<Project Synchronized="False" SyncFilter="*.ps1;*.psm1;*.psd1;*.ps1xml;*.psf;*.pss;*.xml;*.help.txt">
+  <Version>2.1</Version>
+  <FileID>b8b6e912-f9f1-4c02-83c1-1a18a295e950</FileID>
+  <ProjectType>2</ProjectType>
+  <Folders>
+    <Folder>ACTISA-JotForm</Folder>
+  </Folders>
+  <Files>
+    <File Build="1">.gitignore</File>
+    <File Build="2">ACTISA-JotForm\ACTISA-JotForm.psd1</File>
+    <File Build="2">ACTISA-JotForm\ACTISA-JotForm.psm1</File>
+    <File Build="2" Shared="False">process_artistic_carnival_submissions.ps1</File>
+    <File Build="2" Shared="False">process_autumn_trophy_submissions.ps1</File>
+    <File Build="2" Shared="False">process_christmas_gala_submissions.ps1</File>
+    <File Build="2" Shared="False">process_gptoi_submissions.ps1</File>
+    <File Build="2" Shared="False">process_nfc_submissions.ps1</File>
+    <File Build="2" Shared="False">process_rpa_submissions.ps1</File>
+    <File Build="2" Shared="False">process_spring_comp_act_champs_submissions.ps1</File>
+  </Files>
+  <DeployMode>Project</DeployMode>
+  <PrimaryFile></PrimaryFile>
+</Project>
