@@ -63,8 +63,11 @@ $abbreviations = @{
 $google_sheet_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQn6ibK7mxw92I6tcaFUbWjtykALU2dWygOBdCRjG_hUKJQmqoFWTtzbD1c6Qa5sDWz0aXpWwdg3YVL/pub?output=csv'
 $template_folder = 'C:\Users\aaron\Google Drive\Skating\Skating Templates'
 
-$Competition = "ACT Champs Spring Comp $(Get-Date -Format yyyy)";
+$Competition = "ACT Champs Spring Comp $(Get-Date -Format yyyy)"
 $Engraving_Title = "ACT Champs Spring Comp $(Get-Date -Format yyyy)"
+
+$SpringComp_EngravingTitle = "Spring Competition $(Get-Date -Format yyyy)"
+$ACTChamps_EngravingTitle = "ACT Championships $(Get-Date -Format yyyy)"
 
 $certificate_template_act_champs = 'Certificate - ACT Championships 2019.docx'
 $certificate_template_spring_comp = 'Certificate - Spring Competition 2019.docx'
@@ -272,7 +275,7 @@ function Publish-SkaterMusicFile
 	}
 	else
 	{
-		Write-Host "Copying '$filename' -> '$new_music_path'"
+		#Write-Host "Copying '$filename' -> '$new_music_path'"
 		Copy-Item -Path $filename $new_music_path -Force -ErrorAction SilentlyContinue
 		if ($? -eq $false)
 		{
@@ -329,7 +332,7 @@ function Publish-EntryMusicFiles
 		$div_field = $entry.'Division'
 		$gender = $entry.'Skater 1 Gender:'
 		
-		Write-Host "DIV_FIELD: '$div_field'"
+		#Write-Host "DIV_FIELD: '$div_field'"
 		$category = $div_field.Split(";")[0].trim()
 		$division = $div_field.Split(";")[1].trim()
 		
@@ -443,7 +446,6 @@ function Publish-EntryMusicFiles
 			}
 		}
 	}
-	Write-Host "leaving Publish-EntryMusicFiles"
 }
 
 <#
@@ -490,10 +492,10 @@ function New-PPCForms
 	$fp_results = @()
 	foreach ($entry in $entries)
 	{
-		Write-Host "Entry Category/Division: '$($entry.Division)'"
+		#Write-Host "Entry Category/Division: '$($entry.Division)'"
 		$category = $entry.Division.Split(';')[0].trim()
 		$division = $entry.Division.Split(';')[1].trim()
-		Write-Host "Split Cat/Div: Category='$category' Division='$division'"
+		#Write-Host "Split Cat/Div: Category='$category' Division='$division'"
 		
 		if ($category -notmatch 'Aussie Skate')
 		{
@@ -515,7 +517,6 @@ function New-PPCForms
 			
 			if ((($category -match 'Singles') -and ($division -eq 'Advanced Novice')) -or ($division -match 'Junior|Senior'))
 			{
-				Write-Host "Got Cat='$category' and Div='$division'.  Adding SP PPC entry."
 				$sp_results += New-Object -TypeName PSObject -Property @{
 					"Name"  = $name
 					"State" = $entry.'Skater 1 State/Territory:'
@@ -651,8 +652,7 @@ function New-CertificateList
 			Write-Host "    - $name ($division)"
 		}
 		
-		
-		if ($category.startswith("Aussie") -or $division -match 'Prelim|Elementary|Copper|Bronze')
+		if ($category.StartsWith("Aussie") -or $division -match 'Prelim|Elementary|Copper|Bronze')
 		{
 			$spring_results += New-Object -TypeName PSObject -Property @{
 				"Name"	   = $name
@@ -852,8 +852,8 @@ function New-SkatingSchedule
 			$count = $divhash.Item($div).Count
 			$num_warmup_groups = [Math]::Ceiling($count/$MAX_WARMUP_GROUP_SIZE)
 			Add-Content -path $schedule2 -Value "Num Entries: $count"
-			"Warmup Time: ($num_warmup_groups x $warmup) = { 0 } minutes" -f ($num_warmup_groups * $warmup) | Add-Content -Path $schedule2
-			"Performance time = ($count x $performance_time) = { 0 } minutes " -f ($count * $performance_time) | Add-Content -Path $schedule2
+			"Warmup Time: ($num_warmup_groups x $warmup) = {0} minutes" -f ($num_warmup_groups * $warmup) | Add-Content -Path $schedule2
+			"Performance time = ($count x $performance_time) = {0} minutes " -f ($count * $performance_time) | Add-Content -Path $schedule2
 			
 			Add-Content -path $schedule2 -Value "Last Name, First Name, State, Coach Name, Other Coach Names, Music Title, Gender"
 			
@@ -1085,6 +1085,12 @@ function New-EngravingSchedule
 	$TrophyWord = New-Object -ComObject Word.Application
 	$TrophyWord.Visible = $False
 	$TrophyDoc = $TrophyWord.Documents.Add()
+	$TrophySelection = $TrophyWord.Selection
+	$TrophySelection.PageSetup.LeftMargin = 36
+	$TrophySelection.PageSetup.RightMargin = 36
+	$TrophySelection.PageSetup.TopMargin = 36
+	$TrophySelection.PageSetup.BottomMargin = 36
+	
 	$TrophyTable = $TrophyDoc.Tables.Add($TrophyWord.Selection.Range(), 2, 4)
 	$TrophyTable.Range.Style = "No Spacing"
 	$TrophyTable.Borders.Enable = $True
@@ -1111,6 +1117,15 @@ function New-EngravingSchedule
 		if ($category -match "Adult | Dance")
 		{
 			#$division = "$category $division"
+		}
+		
+		if ($category.StartsWith("Aussie") -or $division -match 'Prelim|Elementary|Copper|Bronze')
+		{
+			$Engraving_Title = $SpringComp_EngravingTitle
+		}
+		else
+		{
+			$Engraving_Title = $ACTChamps_EngravingTitle
 		}
 		
 		$count = $divhash.Item($div).Count
