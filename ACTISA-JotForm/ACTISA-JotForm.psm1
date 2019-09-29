@@ -555,13 +555,16 @@ function Find-Template
 		[string]$default
 	)
 	
-	$openFileDialog = New-Object windows.forms.openfiledialog
+	$openFileDialog = New-Object Windows.Forms.OpenFileDialog
 	$openFileDialog.initialDirectory = $initial_dir
 	$openFileDialog.title = $message
 	$openFileDialog.filter = "Word Files (*.doc, *.docx)|*.doc;*.docx"
 	$openFileDialog.FileName = $default
 	$openFileDialog.ShowHelp = $True
-	$result = $openFileDialog.ShowDialog()
+	
+	# use the second overload of the ShowDialog() method to enforce the dialog being the topmost window.
+	# Create a form on the fly to be the parent, since we won't need it after the dialog is closed anyway.
+	$result = $openFileDialog.ShowDialog((New-Object System.Windows.Forms.Form -Property @{ TopMost = $true }))
 	
 	# in ISE you may have to alt-tab or minimize ISE to see dialog box  
 	if ($result -eq "OK")
