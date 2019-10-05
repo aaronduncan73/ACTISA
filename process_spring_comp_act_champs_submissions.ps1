@@ -61,7 +61,7 @@ $abbreviations = @{
 
 # the '2019 ACT Championships and Spring Comp' form on the ACTISA account
 $google_sheet_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQn6ibK7mxw92I6tcaFUbWjtykALU2dWygOBdCRjG_hUKJQmqoFWTtzbD1c6Qa5sDWz0aXpWwdg3YVL/pub?output=csv'
-$template_folder = 'C:\Users\aaron\Google Drive\Skating\Skating Templates'
+$template_folder = 'D:\Skating Templates'
 
 $Competition = "ACT Champs Spring Comp $(Get-Date -Format yyyy)"
 $Engraving_Title = "ACT Champs Spring Comp $(Get-Date -Format yyyy)"
@@ -72,7 +72,14 @@ $ACTChamps_EngravingTitle = "ACT Championships $(Get-Date -Format yyyy)"
 $certificate_template_act_champs = 'Certificate - ACT Championships 2019.docx'
 $certificate_template_spring_comp = 'Certificate - Spring Competition 2019.docx'
 
-$comp_folder = "D:\ACTISA_COMP - $($Competition)"
+if (Test-Path D:)
+{
+	$comp_folder = "D:\ACTISA_COMP - $($Competition)"
+}
+else
+{
+	$comp_folder = "C:\ACTISA_COMP - $($Competition)"
+}
 
 #================================================================================
 #-------------------------          FUNCTIONS          --------------------------
@@ -840,7 +847,7 @@ function New-SkatingSchedule
 			}
 			else
 			{
-				"`"{0}`", `"{1}`", `"{2}`", `"{3}`", `"{4}`", `"{5}`", `"{6}`"" -f $_.'Last Name', $_.'First Name', $_.'Skater 1 State/Territory:', $_.'Coach Name:', $_.'Other Coach Names:', $music_title.Trim(), $_.'Skater 1 Gender:' | Add-Content -path $schedule1
+				"{0}, {1}, {2}, {3}, `"{4}`", {5}, {6}" -f $_.'Last Name', $_.'First Name', $_.'Skater 1 State/Territory:', $_.'Primary Coach Name:', $_.'Other Coach Names:', $music_title.Trim(), $_.'Skater 1 Gender:' | Add-Content -path $schedule1
 			}
 		}
 		Add-Content -Path $schedule1 -Value ""
@@ -874,7 +881,7 @@ function New-SkatingSchedule
 					$coach_name = $_.'Primary Coach Name:2'
 				}
 				$_.Keys
-				"`"{0}`", `"{1}`", `"{2}`", `"{3}`", `"{4}`", `"{5}`", `"{6}`"" -f $_.'Last Name', $_.'First Name', $_.'Skater 1 State/Territory:', $coach_name, $_.'Other Coach Names:', $music_title.Trim(), $_.'Skater 1 Gender:' | Add-Content -path $schedule2
+				"{0}, {1}, {2}, {3}, `"{4}`", {5}, {6}" -f $_.'Last Name', $_.'First Name', $_.'Skater 1 State/Territory:', $coach_name, $_.'Other Coach Names:', $music_title.Trim(), $_.'Skater 1 Gender:' | Add-Content -path $schedule2
 			}
 			Add-Content -Path $schedule2 -Value ""
 		}
