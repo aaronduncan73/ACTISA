@@ -1,4 +1,28 @@
 ﻿
+<#
+	.SYNOPSIS
+		Processes Jotform for National Federation Challenge (NFC)
+	
+	.DESCRIPTION
+		Processes Jotform for National Federation Challenge (NFC)
+	
+	.PARAMETER prompt
+		if the user should be prompted for folder/file locations
+	
+	.EXAMPLE
+			process_nfc_submissions.ps1
+			process_nfc_submissions.ps1 -prompt $true
+			process_nfc_submissions.ps1 -prompt $false
+	
+	.NOTES
+		Additional information about the file.
+#>
+param
+(
+	[bool]
+	$prompt = $true
+)
+
 [Reflection.Assembly]::LoadWithPartialName("System.Web") | Out-Null
 [Reflection.Assembly]::LoadWithPartialName("Microsoft.Office.Interop.Word") | Out-Null
 
@@ -52,837 +76,647 @@ if (!(Test-Path -Path $comp_folder))
 
 <#
 	.SYNOPSIS
-		Download File from the Web
+		Renames music file according to filename conventions, and publishes it to the appropriate location in the Music folder
 	
 	.DESCRIPTION
-		A detailed description of the Get-WebFile function.
-	
-	.PARAMETER url
-		A description of the url parameter.
-	
-	.PARAMETER destination
-		A description of the destination parameter.
-	
-	.EXAMPLE
-				PS C:\> Get-WebFile
-	
-	.NOTES
-		Additional information about the function.
-#>
-function Get-WebFile
-{
-	param
-	(
-		[string]$url,
-		[string]$destination
-	)
-	
-	try
-	{
-		#$progressPreference = 'silentlyContinue'
-		
-		# powershell defaults to SSL3/TLS1.0 but jotform (rightly) only accepts TLS1.2+
-		[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-		
-		# encode the url for safety
-		$index = $url.LastIndexOf('/') + 1
-		$enc_url = $url.Substring(0, $index) + [uri]::EscapeDataString($url.Substring($index))
-		
-		Invoke-WebRequest -Uri $enc_url -OutFile $destination
-	}
-	catch
-	{
-		"Download failed: '$url'"
-		"Encoded url: '$encoded'"
-		"Destination: '$destination'"
-		"ERROR Message:" + $_.Exception.Message
-	}
-}
-
-<#
-	.SYNOPSIS
-		Apply Mailmerge
-	
-	.DESCRIPTION
-		A detailed description of the Invoke-MailMerge function.
-	
-	.PARAMETER template
-		A description of the template parameter.
-	
-	.PARAMETER datasource
-		A description of the datasource parameter.
-	
-	.PARAMETER destination
-		A description of the destination parameter.
-	
-	.EXAMPLE
-				PS C:\> Invoke-MailMerge
-	
-	.NOTES
-		Additional information about the function.
-#>
-function Invoke-MailMerge
-{
-	param
-	(
-		[string]$template,
-		[string]$datasource,
-		[string]$destination
-	)
-	
-	if ([String]::IsNullOrEmpty($template))
-	{
-		Write-Warning "ERROR: empty MailMerge template file supplied to do_mail_merge()"
-	}
-	elseif ((Test-Path -Path $template -ErrorAction SilentlyContinue) -eq $false)
-	{
-		Write-Warning "ERROR: missing MailMerge template file '$template'"
-	}
-	elseif ((Test-Path -Path $datasource -ErrorAction SilentlyContinue) -eq $false)
-	{
-		Write-Warning "ERROR: missing MailMerge datasource file '$datasource'"
-	}
-	else
-	{
-		if ((Test-Path -Path $destination -ErrorAction SilentlyContinue) -eq $false)
-		{
-			New-Item $destination -Type Directory | Out-Null
-		}
-		
-		$word = New-Object -ComObject Word.Application
-		$word.Visible = $false
-		
-		$Doc = $word.Documents.Open($template)
-		$Doc.MailMerge.OpenDataSource($datasource)
-		$Doc.MailMerge.Execute()
-		
-		
-		if (Test-Path -Path $destination -Type Container)
-		{
-			#
-			# the destination is a folder, so generate the destination name to be the 
-			# template name with a pdf extension (located in the destination folder)
-			#
-			$extension = ".pdf"
-			
-			$filename = [System.IO.Path]::GetFileNameWithoutExtension($template) + $extension
-			$destfile = [System.IO.Path]::Combine($destination, $filename)
-		}
-		else
-		{
-			#
-			# the destination file has been specified, so determine if it is a word doc or pdf
-			#
-			$extension = [System.IO.Path]::GetExtension($template)
-			$destfile = $destination
-		}
-		
-		if ($extension -match ".pdf")
-		{
-			#$word.ActiveDocument.ExportAsFixedFormat($destfile, 17)
-			$PDF = [Microsoft.Office.Interop.Word.WdSaveFormat]::wdFormatPDF
-			$word.ActiveDocument.SaveAs($destfile, [ref]$PDF)
-		}
-		else
-		{
-			$word.ActiveDocument.SaveAs($destfile)
-		}
-		
-		$Close = [Microsoft.Office.Interop.Word.WdSaveOptions]::wdDoNotSaveChanges
-		
-		$word.ActiveDocument.Close([ref]$Close)
-		$Doc.Close([ref]$Close)
-		
-		$word.Quit()
-	}
-}
-
-<#
-	.SYNOPSIS
-		Get Music File Duration
-	
-	.DESCRIPTION
-		A detailed description of the Get-MusicFileDuration function.
+		Place the music file in the correct location, with the correctly formatted name.
 	
 	.PARAMETER filename
 		A description of the filename parameter.
 	
+	.PARAMETER category
+		A description of the category parameter.
+	
+	.PARAMETER division
+		A description of the division parameter.
+	
+	.PARAMETER gender
+		A description of the gender parameter.
+	
+	.PARAMETER skatername
+		A description of the skatername parameter.
+	
+	.PARAMETER destination
+		A description of the destination parameter.
+	
+	.PARAMETER program
+		A description of the program parameter.
+	
 	.EXAMPLE
-				PS C:\> Get-MusicFileDuration
+		Publish-SkaterMusicFile -filename $filename -category $category -division $division -gender $gender -skatername $skatername -program $program
 	
 	.NOTES
 		Additional information about the function.
 #>
-function Get-MusicFileDuration
+function Publish-SkaterMusicFile
 {
 	param
 	(
-		[string]$filename
+		$filename,
+		$category,
+		$division,
+		$gender,
+		$skatername,
+		$destination,
+		$program
 	)
 	
-	Write-Host "Getting music file duration for '$filename'"
-	
-	if (Test-Path -Path "$filename" -PathType Leaf -ErrorAction SilentlyContinue)
+	#
+	# Get the duration of the song from the metadata
+	#
+	$extension = [System.IO.Path]::GetExtension($filename)
+	try
 	{
-		$shell = New-Object -COMObject Shell.Application
-		
-		$folder = Split-Path $filename
-		$file = Split-Path $filename -Leaf
-		
-		$shellfolder = $shell.Namespace($folder)
-		$shellfile = $shellfolder.ParseName($file)
-		
-		# find the index of "Length"
-		for ($index = 0; -not $lenidx; $index++)
+		$music_duration = Get-MusicFileDuration -filename $filename
+		if ($music_duration -eq 'notfound')
 		{
-			$details = $shellfolder.GetDetailsOf($shellfolder.Items, $index)
-			if ([string]::IsNullOrEmpty($details))
+			# we failed to get the metadata from the file, so try an alternate file extension
+			if ($extension -eq 'mp3')
 			{
-				Write-Host "failed to get music duration"
-				"notfound"
-				break
+				$newExt = 'm4a'
 			}
 			else
 			{
-				if ($shellfolder.GetDetailsOf($shellfolder.Items, $index) -eq 'Length')
+				$newExt = 'mp3'
+			}
+			
+			# make a copy of the file with the new file extension
+			$newFilename = [System.IO.Path]::ChangeExtension($filename, $newExt)
+			Copy-Item $filename $newFilename
+			
+			# get the duration of the song from the new file
+			$music_duration = Get-MusicFileDuration -filename $newFilename
+			if ($music_duration -ne 'notfound')
+			{
+				# we got a duration this time, so reference the new file (with the valid extension)
+				$filename = $newFilename
+				$extension = $newExt
+			}
+		}
+	}
+	catch
+	{
+		$music_duration = $null
+		Write-Warning "Invalid Music File: $filename"
+	}
+	
+	#
+	# determine the destination music folder
+	#
+	$music_subdir = $division
+	
+	if ($category -notmatch "Aussie|Couple")
+	{
+		if ($gender -ne $null)
+		{
+			if ($gender.Equals("Female"))
+			{
+				$music_subdir += " Ladies"
+			}
+			else
+			{
+				$music_subdir += " Mens"
+			}
+		}
+		else
+		{
+			Write-Warning "gender is null: category is $category"
+		}
+	}
+	
+	if ($category -match "Adult|Dance")
+	{
+		$music_subdir = "$category $music_subdir"
+	}
+	
+	$music_dest = [System.IO.Path]::Combine($destination, $music_subdir)
+	
+	#
+	# Calculate the new music filename
+	#
+	
+	$new_music_file = $division -replace "\(.*\)", ""
+	
+	if ($category.StartsWith("Aussie Skate"))
+	{
+		$new_music_file = "AS_${new_music_file}"
+	}
+	elseif ($category -match "Adult|Dance")
+	{
+		$extra = $category -replace "\(.*\)", ""
+		$new_music_file = "${extra}${new_music_file}"
+	}
+	
+	foreach ($key in $abbreviations.Keys)
+	{
+		$new_music_file = $new_music_file -replace $key, $abbreviations.Item($key)
+	}
+	
+	$new_music_file = $new_music_file -replace " ; ", "_" -replace " ", ""
+	
+	if ($category -match 'Singles' -and $division -match 'Advanced Novice|Junior|Senior')
+	{
+		if ($gender.Equals("Female"))
+		{
+			$new_music_file += "Ladies"
+		}
+		else
+		{
+			$new_music_file += "Men"
+		}
+	}
+	
+	if ((! $category.StartsWith("Aussie")) -and (! [String]::IsNullOrEmpty($program)))
+	{
+		$new_music_file += "_${program}"
+	}
+	
+	$new_music_file += "_${skatername}"
+	
+	if ([String]::IsNullOrEmpty($music_duration))
+	{
+		$new_music_file = "BADFILE_${new_music_file}"
+	}
+	elseif ($music_duration -match "notfound")
+	{
+		$new_music_file = "NOTFOUND_${new_music_file}"
+	}
+	else
+	{
+		$new_music_file += "_${music_duration}"
+	}
+	
+	$new_music_file += $extension
+	
+	$new_music_path = [System.IO.Path]::Combine($music_dest, $new_music_file)
+	
+	if ((Test-Path $music_dest -ErrorAction SilentlyContinue) -eq $false)
+	{
+		$music_dest = [System.IO.Path]::Combine($destination, $music_subdir)
+		New-Item $music_dest -Type Directory | Out-Null
+	}
+	
+	if ((Test-Path $filename -PathType Leaf -ErrorAction SilentlyContinue) -eq $false)
+	{
+		if ((Test-Path $new_music_path -PathType Leaf -ErrorAction SilentlyContinue) -eq $false)
+		{
+			New-Item -Path $new_music_path -ItemType File | Out-Null
+		}
+	}
+	else
+	{
+		#Write-Host "Copying '$filename' -> '$new_music_path'"
+		Copy-Item -Path $filename $new_music_path -Force -ErrorAction SilentlyContinue
+		if ($? -eq $false)
+		{
+			Write-Warning "Failed to copy '$filename' -> '$new_music_path'"
+		}
+		else
+		{
+			"Source Music File: $filename"
+			"Music Destination: $new_music_path"
+			""
+		}
+	}
+}
+
+<#
+	.SYNOPSIS
+		Process All Music Files for a Submission Entry
+	
+	.DESCRIPTION
+		Calls Publish-SkaterMusicFile() for each music file for a submission, which can vary from 1-3 files depending on the divison.
+	
+	.PARAMETER entry
+		A description of the entry parameter.
+	
+	.PARAMETER music_folder
+		A description of the music_folder parameter.
+	
+	.PARAMETER submissionFullPath
+		A description of the submissionFullPath parameter.
+	
+	.EXAMPLE
+		PS C:\> Publish-EntryMusicFiles
+	
+	.NOTES
+		Additional information about the function.
+#>
+function Publish-EntryMusicFiles
+{
+	param
+	(
+		[Parameter(Mandatory = $true)]
+		[pscustomobject]
+		$entry,
+		[Parameter(Mandatory = $true)]
+		[string]
+		$music_folder,
+		[Parameter(Mandatory = $true)]
+		[string]
+		$submissionFullPath
+	)
+	
+	$submission_id = $entry.'Submission ID'
+	
+	# only process entries with a submission ID
+	if (-not [String]::IsNullOrWhiteSpace($submission_id))
+	{
+		$div_field = $entry.'Division'
+		$gender = $entry.'Skater 1 Gender:'
+		
+		#Write-Host "DIV_FIELD: '$div_field'"
+		$category = $div_field.Split(";")[0].trim()
+		$division = $div_field.Split(";")[1].trim()
+		
+		if ($category -match 'Couple')
+		{
+			$name = $entry.'Skater 1 Name' + "_" + $entry.'Skater 2 Name';
+		}
+		else
+		{
+			$name = ConvertTo-CapitalizedName -name $entry.'Skater 1 Name'
+		}
+		
+		$submission_folder =
+		(Resolve-Path "$([System.IO.Path]::Combine($submissionFullPath, "${submission_id}_${name}"))*").Path
+		
+		if ([string]::IsNullOrEmpty($submission_folder))
+		{
+			$submission_folder = [System.IO.Path]::Combine($submissionFullPath, "${submission_id}_${name}-")
+		}
+		
+		if ((Test-Path -Path $submission_folder -ErrorAction SilentlyContinue) -eq $false)
+		{
+			New-Item $submission_folder -Type Directory | Out-Null
+		}
+		
+		Write-Host "Name: $name"
+		
+		# half ice divisions don't have music file uploads
+		if (!$category.StartsWith("Aussie Skate (Half"))
+		{
+			if (!$category.StartsWith("Dance (Solo)"))
+			{
+				Write-Host "getting FS/FD music file"
+				# get the FS/FD music file
+				$music_url = $entry.'FS/FD Music File'
+				$music_file = [System.Web.HttpUtility]::UrlDecode($music_url.Split("/")[-1]);
+				$music_path = [System.IO.Path]::Combine($submission_folder, $music_file)
+				if ((Test-Path -Path $music_path -ErrorAction SilentlyContinue) -eq $false)
 				{
-					$lenidx = $index;
+					# music file is missing, so download it
+					Get-WebFile -url $music_url -destination $music_path
+				}
+				
+				$program = 'FS'
+				if ($category -match 'Dance')
+				{
+					$program = 'FD'
+				}
+				Publish-SkaterMusicFile -filename $music_path -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program $program
+			}
+			
+			if ($category.StartsWith("Dance (Solo)") -or
+				(($category -eq 'Singles') -and ($division -eq 'Advanced Novice')) -or
+				($division -match 'Junior|Senior'))
+			{
+				Write-Host "getting SP/RD music file"
+				# get SP/RD music file
+				$music_url = $entry.'SP/RD Music File'
+				$music_file = [System.Web.HttpUtility]::UrlDecode($music_url.Split("/")[-1]);
+				$music_path = [System.IO.Path]::Combine($submission_folder, $music_file)
+				if ((Test-Path -Path $music_path -ErrorAction SilentlyContinue) -eq $false)
+				{
+					# music file is missing, so download it
+					Get-WebFile -url $music_url -destination $music_path
+				}
+				
+				$program = 'SP'
+				if ($category -match 'Dance')
+				{
+					$program = 'RD'
+				}
+				Publish-SkaterMusicFile -filename $music_path -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program $program
+			}
+			
+			if ($category.StartsWith("Dance") -and ($division -notmatch 'Junior|Senior'))
+			{
+				Write-Host "getting PD1 music file"
+				# get Pattern Dance 1 music file
+				$music_url = $entry.'PD1 Music File'
+				$music_file = [System.Web.HttpUtility]::UrlDecode($music_url.Split("/")[-1]);
+				$music_path = [System.IO.Path]::Combine($submission_folder, $music_file)
+				if ((Test-Path -Path $music_path -ErrorAction SilentlyContinue) -eq $false)
+				{
+					# music file is missing, so download it
+					Get-WebFile -url $music_url -destination $music_path
+				}
+				
+				Publish-SkaterMusicFile -filename $music_path -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program 'PD1'
+				
+				if ($category.StartsWith('Dance (Couple)') -and ($division -ne 'Preliminary'))
+				{
+					Write-Host "getting PD2 music file"
+					# get Pattern Dance 2 music file
+					$music_url = $entry.'PD2 Music File'
+					$music_file = [System.Web.HttpUtility]::UrlDecode($music_url.Split("/")[-1]);
+					if ([String]::IsNullOrEmpty($music_file))
+					{
+						Write-Warning "WARNING: No PD2 Music file provided for $name in category '$category' division '$division'"
+					}
+					else
+					{
+						$music_path = [System.IO.Path]::Combine($submission_folder, $music_file)
+						if ((Test-Path -Path $music_path -ErrorAction SilentlyContinue) -eq $false)
+						{
+							# music file is missing, so download it
+							Get-WebFile -url $music_url -destination $music_path
+						}
+						Publish-SkaterMusicFile -filename $music_path -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program 'PD1'
+					}
 				}
 			}
 		}
+	}
+}
+
+
+<#
+	.SYNOPSIS
+		Generate PPC Forms
+	
+	.DESCRIPTION
+		Generates the PPC Forms from the submission data
+	
+	.PARAMETER entries
+		A description of the entries parameter.
+	
+	.PARAMETER folder
+		A description of the folder parameter.
+	
+	.EXAMPLE
+				PS C:\> New-PPCForms
+	
+	.NOTES
+		Additional information about the function.
+#>
+function New-PPCForms
+{
+	param
+	(
+		$entries,
+		$folder
+	)
+	
+	Write-Host "Generating PPC Forms"
+	
+	if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
+	{
+		New-Item $folder -Type Directory | Out-Null
+	}
+	
+	$sp_ppc_file = [System.IO.Path]::Combine($folder, "short_ppc_entries.csv");
+	$fp_ppc_file = [System.IO.Path]::Combine($folder, "long_ppc_entries.csv");
+	
+	$sp_template = [System.IO.Path]::Combine($template_folder, "Short Program PPC.doc");
+	$fp_template = [System.IO.Path]::Combine($template_folder, "Free Skate PPC.doc");
+	
+	$sp_results = @()
+	$fp_results = @()
+	foreach ($entry in $entries)
+	{
+		#Write-Host "Entry Category/Division: '$($entry.Division)'"
+		$category = $entry.Division.Split(';')[0].trim()
+		$division = $entry.Division.Split(';')[1].trim()
+		#Write-Host "Split Cat/Div: Category='$category' Division='$division'"
 		
-		$duration = $shellfolder.GetDetailsOf($shellfile, $lenidx).split(":");
-		$minutes = $duration[1].ToString().TrimStart('0')
-		$seconds = $duration[2].ToString().TrimStart('0')
-		
-		if ($minutes -eq '') { $minutes = '0' }
-		if ($seconds -eq '') { $seconds = '0' }
-		
-		"${minutes}m${seconds}s"
+		if ($category -notmatch 'Aussie Skate')
+		{
+			if ($category -match 'Adult|Dance')
+			{
+				$division = "${category} ${division}"
+			}
+			
+			if ($category -match 'Couple')
+			{
+				$name = $entry.'Skater 1 Name' + " / " + $entry.'Skater 2 Name';
+				$member_num = $entry.'Skater 1 Membership Number:' + " / " + $entry.'Skater 2 Membership Number:';
+			}
+			else
+			{
+				$name = $entry.'Skater 1 Name';
+				$member_num = $entry.'Skater 1 Membership Number:';
+			}
+			
+			if ((($category -match 'Singles') -and ($division -eq 'Advanced Novice')) -or ($division -match 'Junior|Senior'))
+			{
+				$sp_results += New-Object -TypeName PSObject -Property @{
+					"Name"  = $name
+					"State" = $entry.'Skater 1 State/Territory:'
+					"Membership Number" = $member_num
+					"Division" = $division
+					"Element 1" = $entry.'SP/RD Element 1'
+					"Element 2" = $entry.'SP/RD Element 2'
+					"Element 3" = $entry.'SP/RD Element 3'
+					"Element 4" = $entry.'SP/RD Element 4'
+					"Element 5" = $entry.'SP/RD Element 5'
+					"Element 6" = $entry.'SP/RD Element 6'
+					"Element 7" = $entry.'SP/RD Element 7'
+					"Element 8" = $entry.'SP/RD Element 8'
+				}
+			}
+			
+			$fp_results += New-Object -TypeName PSObject -Property @{
+				"Name"  = $name
+				"State" = $entry.'Skater 1 State/Territory:'
+				"Membership Number" = $member_num
+				"Division" = $division
+				"Element 1" = $entry.'FS/FD Element 1'
+				"Element 2" = $entry.'FS/FD Element 2'
+				"Element 3" = $entry.'FS/FD Element 3'
+				"Element 4" = $entry.'FS/FD Element 4'
+				"Element 5" = $entry.'FS/FD Element 5'
+				"Element 6" = $entry.'FS/FD Element 6'
+				"Element 7" = $entry.'FS/FD Element 7'
+				"Element 8" = $entry.'FS/FD Element 8'
+				"Element 9" = $entry.'FS/FD Element 9'
+				"Element 10" = $entry.'FS/FD Element 10'
+				"Element 11" = $entry.'FS/FD Element 11'
+				"Element 12" = $entry.'FS/FD Element 12'
+				"Element 13" = $entry.'FS/FD Element 13'
+			}
+		}
+	}
+	
+	if ($sp_results.Count -gt 0)
+	{
+		$sp_results |
+		Select-Object "Name", "State", "Membership Number", "Division",
+					  "Element 1", "Element 2", "Element 3", "Element 4",
+					  "Element 5", "Element 6", "Element 7", "Element 8" |
+		Export-Csv -path $sp_ppc_file -Force -NoTypeInformation
+	}
+	
+	if ($fp_results.Count -gt 0)
+	{
+		$fp_results |
+		Select-Object "Name", "State", "Membership Number", "Division",
+					  "Element 1", "Element 2", "Element 3", "Element 4", "Element 5",
+					  "Element 6", "Element 7", "Element 8", "Element 9", "Element 10",
+					  "Element 11", "Element 12", "Element 13" |
+		Export-Csv -path $fp_ppc_file -Force -NoTypeInformation
+	}
+	
+	if (Test-Path -Path $sp_ppc_file -ErrorAction SilentlyContinue)
+	{
+		Invoke-MailMerge -template $sp_template -datasource $sp_ppc_file -destination $folder
 	}
 	else
 	{
-		Write-Warning "Failed to find file: $filename"
-		"notfound"
+		Write-Warning "There are no Short Program PPC submissions"
 	}
-}
-
-<#
-	.SYNOPSIS
-		Capitalizes names according to normal "people name" conventions
 	
-	.DESCRIPTION
-		A detailed description of the ConvertTo-CapitalizedName function.
-	
-	.PARAMETER name
-		A description of the name parameter.
-	
-	.EXAMPLE
-				PS C:\> ConvertTo-CapitalizedName
-	
-	.NOTES
-		Additional information about the function.
-#>
-function ConvertTo-CapitalizedName
-{
-	param
-	(
-		[string]$name
-	)
-	
-	(Get-Culture).textinfo.totitlecase($name.ToLower().Replace("'", "_")).Replace("_", "'").Replace("De ", "de ") -replace " +", " "
-}
-
-<#
-	.SYNOPSIS
-		Provides User Folder Selection Dialog
-	
-	.DESCRIPTION
-		A detailed description of the Find-Folders function.
-	
-	.PARAMETER title
-		A description of the title parameter.
-	
-	.PARAMETER default
-		A description of the default parameter.
-	
-	.EXAMPLE
-		PS C:\> Find-Folders
-	
-	.NOTES
-		Additional information about the function.
-#>
-function Find-Folders
-{
-	param
-	(
-		[string]$title = "Select the Competition directory",
-		[string]$default = "C:\"
-	)
-	
-	#[Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms") | Out-Null
-	Add-Type -AssemblyName System.Windows.Forms
-	
-	[System.Windows.Forms.Application]::EnableVisualStyles()
-	
-	$browse = New-Object System.Windows.Forms.FolderBrowserDialog
-	$browse.SelectedPath = $default
-	$browse.RootFolder = [System.Environment+SpecialFolder]::Desktop
-	$browse.ShowNewFolderButton = $true
-	$browse.Description = $title
-	
-	$result = $browse.ShowDialog((New-Object System.Windows.Forms.Form -Property @{ TopMost = $true }))
-	if ($result -eq [Windows.Forms.DialogResult]::OK)
+	if (Test-Path -Path $fp_ppc_file -ErrorAction SilentlyContinue)
 	{
-		$browse.SelectedPath
-		$browse.Dispose()
+		Invoke-MailMerge -template $fp_template -datasource $fp_ppc_file -destination $folder
 	}
 	else
 	{
-		exit
+		Write-Warning "There are no Free Skate PPC submissions"
 	}
 }
 
 <#
 	.SYNOPSIS
-		Provides Selection Dialog for MailMerge Template
+		Generate the list of skater certificates
 	
 	.DESCRIPTION
-		A detailed description of the Find-Template function.
+		Constructs a list of skaters/divisions, and uses mailmerge to create a pdf list of certificates using word templates (which this function interactively prompts the user for).
 	
-	.PARAMETER message
-		A description of the message parameter.
+	.PARAMETER entries
+		A description of the entries parameter.
 	
-	.PARAMETER initial_dir
-		A description of the initial_dir parameter.
-	
-	.PARAMETER default
-		A description of the default parameter.
+	.PARAMETER folder
+		A description of the folder parameter.
 	
 	.EXAMPLE
-		PS C:\> Find-Template
+				PS C:\> New-CertificateList
 	
 	.NOTES
 		Additional information about the function.
 #>
-function Find-Template
+function New-CertificateList
 {
 	param
 	(
-		[string]$message,
-		[string]$initial_dir,
-		[string]$default
+		$entries,
+		$folder
 	)
 	
-	$openFileDialog = New-Object windows.forms.openfiledialog
-	$openFileDialog.initialDirectory = $initial_dir
-	$openFileDialog.title = $message
-	$openFileDialog.filter = "Word Files (*.doc, *.docx)|*.doc;*.docx"
-	$openFileDialog.FileName = $default
-	$openFileDialog.ShowHelp = $True
-	$result = $openFileDialog.ShowDialog()
+	Write-Host "Generating Certificates."
 	
-	# in ISE you may have to alt-tab or minimize ISE to see dialog box  
-	if ($result -eq "OK")
+	if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
 	{
-		$OpenFileDialog.filename
+		New-Item $folder -Type Directory | Out-Null
+	}
+	
+	$spring_comp_csv = [System.IO.Path]::Combine($folder, "spring_comp_inputs.csv")
+	$act_champs_csv = [System.IO.Path]::Combine($folder, "act_champs_inputs.csv")
+	
+	$spring_results = @()
+	$champs_results = @()
+	$entries | ForEach-Object {
+		$name = ConvertTo-CapitalizedName -name $_.'Skater 1 Name'
+		$category = $_.Division.Split(";")[0].trim()
+		$division = $_.Division.Split(";")[1].trim()
+		
+		if ($category -match "Adult|Dance")
+		{
+			$division = "${category} ${division}"
+		}
+		
+		if ($category -match "Dance")
+		{
+			$name2 = ConvertTo-CapitalizedName -name $_.'Skater 2 Name'
+			Write-Host "    - $name / $name2 ($division)"
+		}
+		else
+		{
+			Write-Host "    - $name ($division)"
+		}
+		
+		if ($category.StartsWith("Aussie") -or $division -match 'Prelim|Elementary|Copper|Bronze')
+		{
+			$spring_results += New-Object -TypeName PSObject -Property @{
+				"Name"	   = $name
+				"Division" = $division
+			}
+			
+			if ($category -match "Dance")
+			{
+				$name = ConvertTo-CapitalizedName -name $_.'Skater 2 Name'
+				$spring_results += New-Object -TypeName PSObject -Property @{
+					"Name"	   = $name
+					"Division" = $division
+				}
+			}
+		}
+		else
+		{
+			$champs_results += New-Object -TypeName PSObject -Property @{
+				"Name"	   = $name
+				"Division" = $division
+			}
+			
+			if ($category -match "Dance")
+			{
+				$name = ConvertTo-CapitalizedName -name $_.'Skater 2 Name'
+				$champs_results += New-Object -TypeName PSObject -Property @{
+					"Name"	   = $name
+					"Division" = $division
+				}
+			}
+		}
+	}
+	
+	if ($spring_results.Count -gt 0)
+	{
+		Write-Host " - generating $($spring_results.Count) Spring Comp Certificates."
+		$spring_results | Select-Object "Name", "Division" | export-csv -path $spring_comp_csv -Force -NoTypeInformation
+		if ($prompt)
+		{
+			$certificate_template_spring_comp = Find-Template -message "Select Spring Comp Certificate Template" -initial_dir $template_folder -default $certificate_template_spring_comp
+		}
+		else
+		{
+			$certificate_template_spring_comp = Resolve-Path -Path "${template_folder}/${certificate_template_spring_comp}"
+		}
+		Invoke-MailMerge -template $certificate_template_spring_comp -datasource $spring_comp_csv -destination $folder
 	}
 	else
 	{
-		Write-Host "Template Selection Cancelled!" -ForegroundColor Yellow
+		Write-Host " - no Spring Comp entries..."
 	}
-}
-
-<#
-	.SYNOPSIS
-		Adds two music durations and returns the result
 	
-	.DESCRIPTION
-		A detailed description of the Add-MusicDurations function.
-	
-	.PARAMETER duration1
-		First duration, in the form: "<number_of_minutes>m<number_of_seconds>s"
-	
-	.PARAMETER duration2
-		First duration, in the form: "<number_of_minutes>m<number_of_seconds>s"
-	
-	.EXAMPLE
-				PS C:\> Add-MusicDurations "1m20s" "0m23s"
-	
-	.NOTES
-		Additional information about the function.
-#>
-function Add-MusicDurations
-{
-	[OutputType([string])]
-	param
-	(
-		[string]$duration1,
-		[string]$duration2
-	)
-	
-	$minutes = 0
-	$seconds = 0
-	
-	if ($duration1 -match "(\d+)m(\d+)s")
+	if ($champs_results.Count -gt 0)
 	{
-		$minutes += $Matches[1]
-		$seconds += $Matches[2]
+		Write-Host " - generating $($champs_results.Count) ACT Champs Certificates."
+		$champs_results | Select-Object "Name", "Division" | export-csv -path $act_champs_csv -Force -NoTypeInformation
+		if ($prompt)
+		{
+			$certificate_template_act_champs = Find-Template -message "Select ACT Champs Certificate Template" -initial_dir $template_folder -default $certificate_template_act_champs
+		}
+		else
+		{
+			$certificate_template_act_champs = Resolve-Path -Path "${template_folder}/${certificate_template_act_champs}"
+		}
+		Invoke-MailMerge -template $certificate_template_act_champs -datasource $act_champs_csv -destination $folder
 	}
-	
-	if ($duration2 -match "(\d+)m(\d+)s")
+	else
 	{
-		$minutes += $Matches[1]
-		$seconds += $Matches[2]
+		Write-Host " - no ACT Champs entries..."
 	}
-	
-	while ($seconds -ge 60)
-	{
-		$minutes++
-		$seconds -= 60
-	}
-	
-	$seconds = "{0:D2}" -f $seconds
-	"${minutes}m${seconds}s"
-}
-
-#--------------------------------------------------------------------------------
-# FUNCTION:
-#  process_music_file
-#
-# DESCRIPTION:
-#  Place the music file in the correct location, with the correctly formatted name.
-#--------------------------------------------------------------------------------
-function process_music_file($filename, $category, $division, $gender, $skatername, $destination, $program)
-{
-    #
-    # Get the duration of the song from the metadata
-    #
-    try
-    {
-        $music_duration = Get-MusicFileDuration -filename $filename
-    }
-    catch
-    {
-        $music_duration = $null
-        Write-Warning "Invalid Music File: $filename"
-    }
-
-    #
-    # determine the destination music folder
-    #
-    $music_subdir = $division
-
-    if ($category -notmatch "Aussie|Couple")
-    {
-        if ($gender -ne $null)
-        {
-            if ($gender.Equals("Female"))
-            {
-                $music_subdir += " Ladies"
-            }
-            else
-            {
-                $music_subdir += " Mens"
-            }
-        }
-        else
-        {
-            Write-Warning "gender is null: category is $category"
-        }
-    }
-
-    if ($category -match "Adult|Dance")
-    {
-        $music_subdir = "$category $music_subdir"
-    }
-
-    $music_dest = [System.IO.Path]::Combine($destination, $music_subdir)
-
-    #
-    # Calculate the new music filename
-    #
-
-    $new_music_file = $division -replace "\(.*\)", ""
-
-    if ($category.StartsWith("Aussie Skate"))
-    {
-        $new_music_file = "AS_${new_music_file}"
-    }
-    elseif ($category -match "Adult|Dance")
-    {
-        $extra = $category -replace "\(.*\)", ""
-        $new_music_file = "${extra}${new_music_file}"
-    }
-
-    if ($category -match 'Couple')
-    {
-        $name = $entry.'Skater 1 Name' + " / " + $entry.'Skater 2 Name';
-        $member_num = $entry.'Skater 1 Membership Number' + " / " + $entry.'Skater 2 Membership Number';
-    }
-
-    foreach ( $key in $abbreviations.Keys )
-    {
-        $new_music_file = $new_music_file -replace $key, $abbreviations.Item($key)
-    }
-
-    $new_music_file = $new_music_file -replace " ; ", "_" -replace " ", ""
-
-    if ($category -match 'Singles' -and $division -match 'Advanced Novice|Junior|Senior')
-    {
-        if ($gender.Equals("Female"))
-        {
-            $new_music_file += "Ladies"
-        }
-        else
-        {
-            $new_music_file += "Men"
-        }
-    }
-
-    if ((! $category.StartsWith("Aussie")) -and (! [String]::IsNullOrEmpty($program)))
-    {
-        $new_music_file += "_${program}"
-    }
-
-    $new_music_file += "_${skatername}"
-
-    if ([String]::IsNullOrEmpty($music_duration))
-    {
-        $new_music_file = "BADFILE_${new_music_file}"
-    }
-    elseif ($music_duration -match "notfound")
-    {
-        $new_music_file = "NOTFOUND_${new_music_file}"
-    }
-    else
-    {
-        $new_music_file += "_${music_duration}"
-    }
-
-    $new_music_file += $extension
-
-    $new_music_path = [System.IO.Path]::Combine($music_dest,   $new_music_file)
-
-    if ((Test-Path $music_dest -ErrorAction SilentlyContinue) -eq $false)
-    {
-        $music_dest = [System.IO.Path]::Combine($destination, $music_subdir)
-        New-Item $music_dest -Type Directory | Out-Null
-    }
-
-    if ((Test-Path $filename -PathType Leaf -ErrorAction SilentlyContinue) -eq $false)
-    {
-        if ((Test-Path $new_music_path -PathType Leaf -ErrorAction SilentlyContinue) -eq $false)
-        {
-            New-Item -Path $new_music_path -ItemType File | Out-Null
-        }
-    }
-    else
-    {
-        Copy-Item -Path $filename $new_music_path -Force -ErrorAction SilentlyContinue
-        if ($? -eq $false)
-        {
-            Write-Warning "Failed to copy '$filename' -> '$new_music_path'"
-        }
-        else
-        {
-            "Source Music File: $filename"
-            "Music Destination: $new_music_path"
-            ""
-        }
-    }
-}
-
-#--------------------------------------------------------------------------------
-# FUNCTION:
-#  process_music_files
-#
-# DESCRIPTION:
-#
-#--------------------------------------------------------------------------------
-function process_music_files($entry, $music_folder, $submissionFullPath)
-{
-    $submission_id = $entry.'Submission ID'
-    $div_field     = $entry.'Division'
-    $category      = $div_field.Split(";")[0].trim()
-    $division      = $div_field.Split(";")[1].trim()
-    $gender        = $entry.'Skater 1 Gender'
-    $music_fs_url  = $entry.'FS Music File:'
-    $music_pd1_url = $entry.'PD1 Music File:'
-    $music_pd2_url = $entry.'PD2 Music File:'
-
-    if ($category -match 'Couple')
-    {
-        $name = $entry.'Skater 1 Name' + "_" + $entry.'Skater 2 Name';
-    }
-    else
-    {
-        $name = ConvertTo-CapitalizedName -name $entry.'Skater 1 Name'
-    }
-
-    $submission_folder = 
-        (Resolve-Path "$([System.IO.Path]::Combine($submissionFullPath, "${submission_id}_${name}"))*").Path
-
-    if ([string]::IsNullOrEmpty($submission_folder))
-    {
-        $submission_folder = [System.IO.Path]::Combine($submissionFullPath, "${submission_id}_${name}-")
-    }
-
-    Write-Host "Name: $name"
-    #Write-Host "Submission folder: $submission_folder"
-
-    # half ice divisions don't have music file uploads
-    if (!$category.StartsWith("Aussie Skate (Half"))
-    {
-        # 1. all have a FS
-        # 2. AdvNov/Junior/Senior have a SP
-        # 3. Dance has a PD2 (except Junior/Senior)
-
-        $music_fs_file      = [System.Web.HttpUtility]::UrlDecode($music_fs_url.Split("/")[-1]);
-        $music_pd1_file     = [System.Web.HttpUtility]::UrlDecode($music_pd1_url.Split("/")[-1]);
-
-        $music_fs_fullpath  = [System.IO.Path]::Combine($submission_folder, $music_fs_file) -replace '([][[])', ''
-        $music_pd1_fullpath = [System.IO.Path]::Combine($submission_folder, $music_pd1_file) -replace '([][[])', ''
-
-        $extension          = [System.IO.Path]::GetExtension($music_fs_file)
-
-        if ((Test-Path -Path $submission_folder -ErrorAction SilentlyContinue) -eq $false)
-        {
-            New-Item $submission_folder -Type Directory | Out-Null
-        }
-
-        # ensure that the FS music file is downloaded
-        if ([String]::IsNullOrEmpty($music_fs_file))
-        {
-            Write-Warning "WARNING: No FS/FD Music file provided for $name in category '$category' division '$division'"
-        }
-        else
-        {
-            if ((Test-Path -Path $music_fs_fullpath -ErrorAction SilentlyContinue) -eq $false)
-            {
-                # music file is missing, so download it
-                Write-Host "Music File: '$music_fs_url'"
-                Get-WebFile -url $music_fs_url -destination $music_fs_fullpath
-            }
-        }
-
-        if ($category -match 'Dance')
-        {
-            process_music_file `
-                    -filename $music_fs_fullpath `
-                    -category $category `
-                    -division $division `
-                    -skatername $name `
-                    -gender $gender `
-                    -destination $music_folder `
-                    -program 'FD'
-
-            process_music_file `
-                -filename $music_pd1_fullpath `
-                -category $category `
-                -division $division `
-                -skatername $name `
-                -gender $gender `
-                -destination $music_folder `
-                -program "PD1"
-
-            # ensure the PD2 file is downloaded
-            if ([String]::IsNullOrEmpty($music_pd2_url))
-            {
-                Write-Warning "WARNING: Failed to retrieve PD2 musicfile URL for $name in category '$category' division '$division'"
-            }
-            else
-            {
-                $music_pd2_file = [System.Web.HttpUtility]::UrlDecode($music_pd2_url.Split("/")[-1]);
-                if ([String]::IsNullOrEmpty($music_pd2_file))
-                {
-                    Write-Warning "WARNING: No PD2 Music file provided for $name in category '$category' division '$division'"
-                }
-                else
-                {
-                    $music_pd2_fullpath = [System.IO.Path]::Combine($submission_folder, $music_pd2_file)
-                    if ((Test-Path -Path $music_pd2_fullpath -ErrorAction SilentlyContinue) -eq $false)
-                    {
-                        # music file is missing, so download it
-                        Write-Host "Music File: '$music_pd2_url'"
-                        Get-WebFile -url $music_pd2_url -destination $music_pd2_fullpath
-                    }
-                }
-
-                process_music_file `
-                    -filename $music_pd2_fullpath `
-                    -category $category `
-                    -division $division `
-                    -skatername $name `
-                    -gender $gender `
-                    -destination $music_folder `
-                    -program "PD2"
-            }
-        }
-        else
-        {
-            process_music_file `
-                    -filename $music_fs_fullpath `
-                    -category $category `
-                    -division $division `
-                    -skatername $name `
-                    -gender $gender `
-                    -destination $music_folder `
-                    -program 'FS'
-        }
-    }
-}
-
-#--------------------------------------------------------------------------------
-# FUNCTION:
-#  generate_ppc_forms
-#
-# DESCRIPTION:
-#
-#--------------------------------------------------------------------------------
-function generate_ppc_forms($entries,$folder)
-{
-    Write-Host "Generating PPC Forms"
-
-    if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
-    {
-        New-Item $folder -Type Directory | Out-Null
-    }
-
-    $fp_ppc_file = [System.IO.Path]::Combine($folder, "long_ppc_entries.csv");
-    $fp_template = [System.IO.Path]::Combine($template_folder, "Free Skate PPC.doc");
-
-    $fp_results = @()
-    foreach ($entry in $entries)
-    {
-        $category  = $entry.Division.Split(";")[0].trim()
-        $division  = $entry.Division.Split(";")[1].trim()
-
-        if ($category -notmatch 'Aussie Skate')
-        {
-            if ($category -match 'Adult|Dance')
-            {
-                $division = "${category} ${division}"
-            }
-
-            if ($category -match 'Couple')
-            {
-                $name = $entry.'Skater 1 Name' + " / " + $entry.'Skater 2 Name';
-                $member_num = $entry.'Skater 1 Membership Number' + " / " + $entry.'Skater 2 Membership Number';
-            }
-            else
-            {
-                $name = $entry.'Skater 1 Name';
-                $member_num = $entry.'Skater 1 Membership Number';
-            }
-
-            $fp_results += New-Object -TypeName PSObject -Property @{
-                "Name"              = $name
-                "State"             = $entry.'Skater 1 State/Territory'
-                "Membership Number" = $member_num
-                "Division"          = $division
-                "Element 1"         = $entry.'Element 1'
-                "Element 2"         = $entry.'Element 2'
-                "Element 3"         = $entry.'Element 3'
-                "Element 4"         = $entry.'Element 4'
-                "Element 5"         = $entry.'Element 5'
-                "Element 6"         = $entry.'Element 6'
-                "Element 7"         = $entry.'Element 7'
-                "Element 8"         = $entry.'Element 8'
-                "Element 9"         = $entry.'Element 9'
-                "Element 10"        = $entry.'Element 10'
-                "Element 11"        = $entry.'Element 11'
-                "Element 12"        = $entry.'Element 12'
-                "Element 13"        = $entry.'Element 13'
-            }
-        }
-    }
-
-    if ($fp_results.Count -gt 0)
-    {
-        $fp_results |
-        Select-Object "Name", "State", "Membership Number", "Division",
-                      "Element 1", "Element 2", "Element 3", "Element 4", "Element 5",
-                      "Element 6", "Element 7", "Element 8", "Element 9", "Element 10",
-                      "Element 11","Element 12", "Element 13" | 
-        export-csv -path $fp_ppc_file -Force -NoTypeInformation
-    }
-
-    if (Test-Path -Path $fp_ppc_file -ErrorAction SilentlyContinue)
-    {
-        Invoke-MailMerge -template $fp_template -datasource $fp_ppc_file -destination $folder
-    }
-    else
-    {
-        Write-Warning "There are no Free Skate PPC submissions"
-    }
-}
-
-#--------------------------------------------------------------------------------
-# FUNCTION:
-#  generate_certificates
-#
-# DESCRIPTION:
-#
-#--------------------------------------------------------------------------------
-function generate_certificates($entries, $folder)
-{
-    Write-Host "Generating Certificates"
-
-    if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
-    {
-        New-Item $folder -Type Directory | Out-Null
-    }
-
-    $template = Find-Template -message "Select Certificate Template" -initial_dir $template_folder -default $certificate_template
-
-    $input_csv = [System.IO.Path]::Combine($folder, "certificate_inputs.csv")
-
-    #Write-Host "Input CSV file: $input_csv"
-
-    $results = @()
-
-    $entries | ForEach-Object {
-        $name     = ConvertTo-CapitalizedName -name $_.'Skater 1 Name'
-        $category = $_.'Division'.Split(";")[0].trim()
-        $division = $_.'Division'.Split(";")[1].trim()
-
-        #Write-Host "Name: $name"
-
-        Write-Host "Generating certificate for $name ($division)"
-        if ($category -match "Adult|Dance")
-        {
-            if ($category.Contains('('))
-            {
-                $cat_parts = $category.split('()')
-                $division = "$(${cat_parts}[1]) $(${cat_parts}[0]) - $division"
-            }
-            else
-            {
-                $division = "${category} ${division}"
-            }
-        }
-
-        $results += New-Object -TypeName PSObject -Property @{
-            "Name"     = $name
-            "Division" = $division
-        }
-
-        if ($category -match "Couple")
-        {
-            $name = ConvertTo-CapitalizedName -name $_.'Skater 2 Name'
-            $results += New-Object -TypeName PSObject -Property @{
-                "Name"     = $name
-                "Division" = $division
-            }
-        }
-    }
-
-    #Write-Host "Number of entries = $($entries.Count)"
-    $results | Select-Object "Name", "Division"
-    $results | Select-Object "Name", "Division" | export-csv -path $input_csv -Force -NoTypeInformation -Encoding UTF8
-
-    Invoke-MailMerge -template $template -datasource $input_csv -destination $folder
 }
 
 #--------------------------------------------------------------------------------
@@ -986,510 +820,763 @@ function generate_skating_schedule($entries, $folder)
 
 }
 
-#--------------------------------------------------------------------------------
-# FUNCTION:
-#  generate_division_counts
-#
-# DESCRIPTION:
-#
-#--------------------------------------------------------------------------------
-function generate_division_counts($entries, $folder)
+<#
+	.SYNOPSIS
+		Create Count Spreadsheet
+	
+	.DESCRIPTION
+		A detailed description of the New-DivisionCountsSpreadsheet function.
+	
+	.PARAMETER entries
+		A description of the entries parameter.
+	
+	.PARAMETER folder
+		A description of the folder parameter.
+	
+	.PARAMETER format
+		A description of the format parameter.
+	
+	.EXAMPLE
+		PS C:\> New-DivisionCountsSpreadsheet
+	
+	.NOTES
+		Additional information about the function.
+#>
+function New-DivisionCountsSpreadsheet
 {
-    Write-Host "Generating Division Counts Spreadsheet"
-
-    if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
-    {
-        New-Item $folder -Type Directory | Out-Null
-    }
-
-    $divcounts_csv = [System.IO.Path]::Combine($folder, "division_medal_and_trophy_counts.csv")
-
-    if (Test-Path $divcounts_csv) { Remove-Item -Path $divcounts_csv }
-    
-    $gender = @{ Female = "Ladies"; Male = "Men" }
-
-    $divhash = @{}
-    foreach ($entry in $entries)
-    {
-        $division = $entry.'Division'
-
-        if ($division -notmatch "Aussie Skate" -and $division -notmatch "Dance")
-        {
-            try
-            {
-                $division += " " + $gender[$entry.'Skater 1 Gender']
-            }
-            catch
-            {
-                Write-Warning "failed to get gender for $($entry.'Skater 1 Name')"
-            }
-        }
-
-        if (!$divhash.ContainsKey($division))
-        {
-            $divhash[$division] = @()
-        }
-        $divhash[$division] += $entry
-    }
-
-#    $divhash.GetEnumerator() | Sort Name
-
-    Add-Content -Path $divcounts_csv -Value "Category,Division,# Skaters,Bronze Medal,Silver Medal,Gold Medal,Bronze Trophy,Silver Trophy,Gold Trophy"
-
-    $trophy_count = @{ gold = 0; silver = 0; bronze = 0 }
-    $medal_count  = @{ gold = 0; silver = 0; bronze = 0 }
-
-    foreach ($div in $divhash.Keys | Sort)
-    {
-        $category  = $div.Split(";")[0].trim()
-        $division  = $div.Split(";")[1].trim()
-
-        $count = $divhash.Item($div).Count
-        $medal_gold = ""
-        $medal_silver = ""
-        $medal_bronze = ""
-        $trophy_gold = ""
-        $trophy_silver = ""
-        $trophy_bronze = ""
-
-        if ($category.StartsWith("Aussie"))
-        {
-            if ($count -ge 1) { $medal_gold   = "x"; $medal_count.gold++   }
-            if ($count -ge 2) { $medal_silver = "x"; $medal_count.silver++ }
-            if ($count -ge 3) { $medal_bronze = "x"; $medal_count.bronze++ }
-        }
-        else
-        {
-            if ($count -ge 1) { $trophy_gold   = "x"; $trophy_count.gold++   }
-            if ($count -ge 2) { $trophy_silver = "x"; $trophy_count.silver++ }
-            if ($count -ge 3) { $trophy_bronze = "x"; $trophy_count.bronze++ }
-        }
-        "{0},{1},{2},{3},{4},{5},{6},{7},{8}" -f $category, $division, $count, $medal_bronze, $medal_silver, $medal_gold, $trophy_bronze, $trophy_silver, $trophy_gold | Add-Content -Path $divcounts_csv
-    }
-
-    ",,TOTAL:,{0},{1},{2},{3},{4},{5}" -f $medal_count.bronze, $medal_count.silver, $medal_count.gold, $trophy_count.bronze, $trophy_count.silver, $trophy_count.gold | Add-Content -Path $divcounts_csv
+	param
+	(
+		$entries,
+		$folder,
+		$format = 'csv'
+	)
+	
+	Write-Host "Generating Division Counts Spreadsheet ($format)"
+	
+	if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
+	{
+		New-Item $folder -Type Directory | Out-Null
+	}
+	
+	$filepath = [System.IO.Path]::Combine($folder, "division_counts.${format}")
+	if (Test-Path $filepath) { Remove-Item -Path $filepath }
+	
+	$gender = @{ Female = "Ladies"; Male = "Men" }
+	
+	$divhash = @{ }
+	foreach ($entry in $entries)
+	{
+		$division = $entry.'Division'
+		
+		if ($division -notmatch "Aussie Skate" -and $division -notmatch "Dance")
+		{
+			try
+			{
+				$division += " " + $gender[$entry.'Skater 1 Gender:']
+			}
+			catch
+			{
+				Write-Warning "failed to get gender for $($entry.'Skater 1 Name')"
+			}
+		}
+		
+		if (!$divhash.ContainsKey($division))
+		{
+			$divhash[$division] = @()
+		}
+		$divhash[$division] += $entry
+	}
+	
+	$rows = @()
+	
+	$trophy_count = @{ gold = 0; silver = 0; bronze = 0 }
+	$medal_count = @{ gold = 0; silver = 0; bronze = 0 }
+	
+	foreach ($div in $divhash.Keys | Sort-Object)
+	{
+		$category = $div.Split(";")[0].trim()
+		$division = $div.Split(";")[1].trim()
+		
+		if ($category -match "Adult | Dance")
+		{
+			#$division = "$category $division"
+		}
+		
+		if ($category -match 'Couple')
+		{
+			$numSkaters = 2
+		}
+		else
+		{
+			$numSkaters = 1
+		}
+		
+		$count = $divhash.Item($div).Count
+		$medal_gold = ""
+		$medal_silver = ""
+		$medal_bronze = ""
+		$trophy_gold = ""
+		$trophy_silver = ""
+		$trophy_bronze = ""
+		
+		if ($category.StartsWith("Aussie"))
+		{
+			if ($count -ge 1) { $medal_gold = $numSkaters; $medal_count.gold += $numSkaters }
+			if ($count -ge 2) { $medal_silver = $numSkaters; $medal_count.silver += $numSkaters }
+			if ($count -ge 3) { $medal_bronze = $numSkaters; $medal_count.bronze += $numSkaters }
+		}
+		else
+		{
+			if ($count -ge 1) { $trophy_gold = $numSkaters; $trophy_count.gold += $numSkaters }
+			if ($count -ge 2) { $trophy_silver = $numSkaters; $trophy_count.silver += $numSkaters }
+			if ($count -ge 3) { $trophy_bronze = $numSkaters; $trophy_count.bronze += $numSkaters }
+		}
+		
+		$rows += (@{ 'border' = $true; 'values' = @($category, $division, $count, $medal_bronze, $medal_silver, $medal_gold, $trophy_bronze, $trophy_silver, $trophy_gold) })
+	}
+	
+	$rows += (@{
+			border = $false;
+			values = @('', '', 'TOTAL:', $medal_count.bronze, $medal_count.silver, $medal_count.gold, $trophy_count.bronze, $trophy_count.silver, $trophy_count.gold)
+		})
+	
+	$headers = @('Category', 'Division', '# Entries', 'Bronze Medal', 'Silver Medal', 'Gold Medal', 'Bronze Trophy', 'Silver Trophy', 'Gold Trophy')
+	New-SpreadSheet -name "Division Counts" -path $filepath -headers $headers -rows $rows -format $format
 }
 
-#--------------------------------------------------------------------------------
-#  FUNCTION:  generate_engraving_schedule
-#--------------------------------------------------------------------------------
-function generate_engraving_schedule($entries, $folder)
+<#
+	.SYNOPSIS
+		Create Trophy/Medal engraving schedules
+	
+	.DESCRIPTION
+		A detailed description of the New-EngravingSchedule function.
+	
+	.PARAMETER entries
+		A description of the entries parameter.
+	
+	.PARAMETER folder
+		A description of the folder parameter.
+	
+	.EXAMPLE
+				PS C:\> New-EngravingSchedule
+	
+	.NOTES
+		Additional information about the function.
+#>
+function New-EngravingSchedule
 {
-    Write-Host "Generating Engraving Schedule"
-
-    if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
-    {
-        New-Item $folder -Type Directory | Out-Null
-    }
-
-    $medalPath = [System.IO.Path]::Combine($folder, "${Competition} - MEDALS.docx")
-    $trophyPath = [System.IO.Path]::Combine($folder, "${Competition} - TROPHIES.docx")
-
-    if (Test-Path $medalPath)  { Remove-Item -Path $medalPath  }
-    if (Test-Path $trophyPath) { Remove-Item -Path $trophyPath }
-    
-    $gender = @{ Female = "Ladies"; Male = "Men" }
-
-    $divhash = @{}
-    foreach ($entry in $entries)
-    {
-        $division = $entry.'Division'
-
-        if ($division -notmatch "Aussie Skate" -and $division -notmatch "Dance")
-        {
-            try
-            {
-                $division += " " + $gender[$entry.'Skater 1 Gender']
-            }
-            catch
-            {
-                Write-Warning "failed to get gender for $($entry.'Skater 1 Name')"
-            }
-        }
-
-        if (!$divhash.ContainsKey($division))
-        {
-            $divhash[$division] = @()
-        }
-        $divhash[$division] += $entry
-    }
-
-    # Create Medals Table
-    $MedalWord         = New-Object -ComObject Word.Application
-    $MedalWord.Visible = $False
-    $MedalDoc     = $MedalWord.Documents.Add()
-    $MedalTable = $MedalDoc.Tables.Add($MedalWord.Selection.Range(),2,4)
-    $MedalTable.Range.Style = "No Spacing"
-    $MedalTable.Borders.Enable = $True
-    $MedalTable.Rows(2).Cells(1).Range.Text = "Division"
-    $MedalTable.Rows(2).Cells(1).Range.Bold = $True
-
-    # Create Trophy Table
-    $TrophyWord   = New-Object -ComObject Word.Application
-    $TrophyWord.Visible = $False
-    $TrophyDoc   = $TrophyWord.Documents.Add()
-    $TrophyTable = $TrophyDoc.Tables.Add($TrophyWord.Selection.Range(),2,4)
-    $TrophyTable.Range.Style = "No Spacing"
-    $TrophyTable.Borders.Enable = $True
-    $TrophyTable.Rows(2).Cells(1).Range.Text = "Division"
-    $TrophyTable.Rows(2).Cells(1).Range.Bold = $True
-
-    # Create the title row on each table
-    $Row = $MedalTable.Rows(1)
-    $Row.Cells.Merge()
-    $Row.Cells(1).Range.Text = "$Competition engraving schedule - MEDALS"
-    $Row.Cells(1).Range.Bold = $true
-    $Row.Cells(1).Range.paragraphFormat.Alignment = [Microsoft.Office.Interop.Word.WdParagraphAlignment]::wdAlignParagraphCenter
-    $Row = $TrophyTable.Rows(1)
-    $Row.Cells.Merge()
-    $Row.Cells(1).Range.Text = "$Competition engraving schedule - TROPHY"
-    $Row.Cells(1).Range.Bold = $true
-    $Row.Cells(1).Range.paragraphFormat.Alignment = [Microsoft.Office.Interop.Word.WdParagraphAlignment]::wdAlignParagraphCenter
-
-    foreach ($div in $divhash.Keys | Sort)
-    {
-        $category  = $div.Split(";")[0].trim()
-        $division  = $div.Split(";")[1].trim()
-
-        if ($category -match "Adult|Dance")
-        {
-            #$division = "$category $division"
-        }
-
-        $count = $divhash.Item($div).Count
-        if ($category.StartsWith("Aussie"))
-        {
-            $Row = $MedalTable.Rows.Add()
-        }
-        else
-        {
-            $Row = $TrophyTable.Rows.Add()
-        }
-
-        $Row.Cells(1).Range.Text = $division
-        $Row.Cells(1).Range.Bold = $True
-        $Row.Cells(1).Range.Font.Spacing = 1.0
-        $Row.Cells(1).Range.paragraphFormat.Alignment = [Microsoft.Office.Interop.Word.WdParagraphAlignment]::wdAlignParagraphCenter
-
-        if ($count -ge 1) { $Row.Cells(2).Range.Text = "${Engraving_Title}`r$division`r1st Place" }
-        if ($count -ge 2) { $Row.Cells(3).Range.Text = "${Engraving_Title}`r$division`r2nd Place" }
-        if ($count -ge 3) { $Row.Cells(4).Range.Text = "${Engraving_Title}`r$division`r3rd Place" }
-    }
-
-    # Save the documents
-    $MedalDoc.SaveAs($medalPath,   [Microsoft.Office.Interop.Word.WdSaveFormat]::wdFormatDocumentDefault)
-    $TrophyDoc.SaveAs($trophyPath, [Microsoft.Office.Interop.Word.WdSaveFormat]::wdFormatDocumentDefault)
-    $MedalDoc.close()
-    $TrophyDoc.close()
-    $MedalWord.quit()
-    $TrophyWord.quit()
-
-    # Cleanup the memory
-    [System.Runtime.Interopservices.Marshal]::ReleaseComObject($MedalDoc)    | Out-Null
-    [System.Runtime.Interopservices.Marshal]::ReleaseComObject($TrophyDoc)   | Out-Null
-    [System.Runtime.Interopservices.Marshal]::ReleaseComObject($MedalWord)   | Out-Null
-    [System.Runtime.Interopservices.Marshal]::ReleaseComObject($TrophyWord)  | Out-Null
-    [System.Runtime.Interopservices.Marshal]::ReleaseComObject($MedalTable)  | Out-Null
-    [System.Runtime.Interopservices.Marshal]::ReleaseComObject($TrophyTable) | Out-Null
-    Remove-Variable MedalDoc, TrophyDoc, MedalWord, TrophyWord, Row, MedalTable, TrophyTable
-    [gc]::collect()
-    [gc]::WaitForPendingFinalizers()
+	param
+	(
+		$entries,
+		$folder
+	)
+	
+	Write-Host "Generating Engraving Schedule"
+	
+	if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
+	{
+		New-Item $folder -Type Directory | Out-Null
+	}
+	
+	$medalPath = [System.IO.Path]::Combine($folder, "${Competition} - MEDALS.docx")
+	$trophyPath = [System.IO.Path]::Combine($folder, "${Competition} - TROPHIES.docx")
+	
+	if (Test-Path $medalPath) { Remove-Item -Path $medalPath }
+	if (Test-Path $trophyPath) { Remove-Item -Path $trophyPath }
+	
+	$gender = @{ Female = "Ladies"; Male = "Men" }
+	
+	$divhash = @{ }
+	foreach ($entry in $entries)
+	{
+		$division = $entry.'Division'
+		
+		if ($division -notmatch "Aussie Skate" -and $division -notmatch "Dance")
+		{
+			try
+			{
+				$division += " " + $gender[$entry.'Skater 1 Gender:']
+			}
+			catch
+			{
+				Write-Warning "failed to get gender for $($entry.'Skater 1 Name')"
+			}
+		}
+		
+		if (!$divhash.ContainsKey($division))
+		{
+			$divhash[$division] = @()
+		}
+		$divhash[$division] += $entry
+	}
+	
+	# Create Medals Table
+	$MedalWord = New-Object -ComObject Word.Application
+	$MedalWord.Visible = $False
+	$MedalDoc = $MedalWord.Documents.Add()
+	$MedalSelection = $MedalWord.Selection
+	$MedalSelection.PageSetup.LeftMargin = 36
+	$MedalSelection.PageSetup.RightMargin = 36
+	$MedalSelection.PageSetup.TopMargin = 36
+	$MedalSelection.PageSetup.BottomMargin = 36
+	$MedalSelection.paragraphFormat.Alignment = [Microsoft.Office.Interop.Word.WdParagraphAlignment]::wdAlignParagraphCenter
+	$MedalTable = $MedalDoc.Tables.Add($MedalWord.Selection.Range(), 2, 4)
+	$MedalTable.Range.Style = "No Spacing"
+	$MedalTable.Borders.Enable = $True
+	$MedalTable.Rows(2).Cells(1).Range.Text = "Division"
+	$MedalTable.Rows(2).Cells(1).Range.Bold = $True
+	
+	# Create Trophy Table
+	$TrophyWord = New-Object -ComObject Word.Application
+	$TrophyWord.Visible = $False
+	$TrophyDoc = $TrophyWord.Documents.Add()
+	$TrophySelection = $TrophyWord.Selection
+	$TrophySelection.PageSetup.LeftMargin = 36
+	$TrophySelection.PageSetup.RightMargin = 36
+	$TrophySelection.PageSetup.TopMargin = 36
+	$TrophySelection.PageSetup.BottomMargin = 36
+	
+	$TrophyTable = $TrophyDoc.Tables.Add($TrophyWord.Selection.Range(), 2, 4)
+	$TrophyTable.Range.Style = "No Spacing"
+	$TrophyTable.Borders.Enable = $True
+	$TrophyTable.Rows(2).Cells(1).Range.Text = "Division"
+	$TrophyTable.Rows(2).Cells(1).Range.Bold = $True
+	$TrophyTable.Select()
+	
+	# Create the title row on each table
+	$Row = $MedalTable.Rows(1)
+	$Row.Cells.Merge()
+	$Row.Cells(1).Range.Text = "$Competition engraving schedule - MEDALS"
+	$Row.Cells(1).Range.Bold = $true
+	$Row = $TrophyTable.Rows(1)
+	$Row.Cells.Merge()
+	$Row.Cells(1).Range.Text = "$Competition engraving schedule - TROPHY"
+	$Row.Cells(1).Range.Bold = $true
+	
+	#$Row.Cells(1).Range.paragraphFormat.Alignment = [Microsoft.Office.Interop.Word.WdParagraphAlignment]::wdAlignParagraphCenter
+	
+	foreach ($div in $divhash.Keys | Sort-Object)
+	{
+		$category = $div.Split(";")[0].trim()
+		$division = $div.Split(";")[1].trim()
+		
+		if ($category -match "Adult | Dance")
+		{
+			#$division = "$category $division"
+		}
+		
+		if ($category.StartsWith("Aussie") -or $division -match 'Prelim|Elementary|Copper|Bronze')
+		{
+			$Engraving_Title = $SpringComp_EngravingTitle
+		}
+		else
+		{
+			$Engraving_Title = $ACTChamps_EngravingTitle
+		}
+		
+		$count = $divhash.Item($div).Count
+		if ($category.StartsWith("Aussie"))
+		{
+			$Row = $MedalTable.Rows.Add()
+		}
+		else
+		{
+			$Row = $TrophyTable.Rows.Add()
+		}
+		
+		$Row.Cells(1).Range.Text = $division
+		$Row.Cells(1).Range.Bold = $True
+		$Row.Cells(1).Range.Font.Spacing = 1.0
+		$Row.Cells(1).Range.paragraphFormat.Alignment = [Microsoft.Office.Interop.Word.WdParagraphAlignment]::wdAlignParagraphCenter
+		
+		if ($count -ge 1) { $Row.Cells(2).Range.Text = "${Engraving_Title}`r$division`r1st Place" }
+		if ($count -ge 2) { $Row.Cells(3).Range.Text = "${Engraving_Title}`r$division`r2nd Place" }
+		if ($count -ge 3) { $Row.Cells(4).Range.Text = "${Engraving_Title}`r$division`r3rd Place" }
+	}
+	
+	$TrophyTable.Select()
+	$TrophySelection.paragraphFormat.Alignment = [Microsoft.Office.Interop.Word.WdParagraphAlignment]::wdAlignParagraphCenter
+	
+	$MedalTable.Select()
+	$MedalSelection.paragraphFormat.Alignment = [Microsoft.Office.Interop.Word.WdParagraphAlignment]::wdAlignParagraphCenter
+	
+	# Save the documents
+	$MedalDoc.SaveAs($medalPath, [Microsoft.Office.Interop.Word.WdSaveFormat]::wdFormatDocumentDefault)
+	$TrophyDoc.SaveAs($trophyPath, [Microsoft.Office.Interop.Word.WdSaveFormat]::wdFormatDocumentDefault)
+	$MedalDoc.close()
+	$TrophyDoc.close()
+	$MedalWord.quit()
+	$TrophyWord.quit()
+	
+	# Cleanup the memory
+	[System.Runtime.Interopservices.Marshal]::ReleaseComObject($MedalDoc) | Out-Null
+	[System.Runtime.Interopservices.Marshal]::ReleaseComObject($TrophyDoc) | Out-Null
+	[System.Runtime.Interopservices.Marshal]::ReleaseComObject($MedalWord) | Out-Null
+	[System.Runtime.Interopservices.Marshal]::ReleaseComObject($TrophyWord) | Out-Null
+	[System.Runtime.Interopservices.Marshal]::ReleaseComObject($MedalTable) | Out-Null
+	[System.Runtime.Interopservices.Marshal]::ReleaseComObject($TrophyTable) | Out-Null
+	Remove-Variable MedalDoc, TrophyDoc, MedalWord, TrophyWord, Row, MedalTable, TrophyTable
+	[gc]::collect()
+	[gc]::WaitForPendingFinalizers()
 }
 
-#--------------------------------------------------------------------------------
-# FUNCTION:
-#  generate_skater_email_list
-#
-# DESCRIPTION:
-#
-#--------------------------------------------------------------------------------
-function generate_skater_email_list($entries, $folder)
+<#
+	.SYNOPSIS
+		Create list of skater email addresses
+	
+	.DESCRIPTION
+		A detailed description of the New-SkaterEmailList function.
+	
+	.PARAMETER entries
+		A description of the entries parameter.
+	
+	.PARAMETER folder
+		A description of the folder parameter.
+	
+	.EXAMPLE
+				PS C:\> New-SkaterEmailList
+	
+	.NOTES
+		Additional information about the function.
+#>
+function New-SkaterEmailList
 {
-    Write-Host "Generating Skater Email List"
-
-    if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
-    {
-        New-Item $folder -Type Directory | Out-Null
-    }
-
-    $filename = [System.IO.Path]::Combine($folder, "skater_email_list.txt")
-
-    $list = @()
-    foreach ($entry in $entries)
-    {
-        $list += $entry.'Skater 1 Contact E-mail'
-    }
-
-    if (Test-Path $filename) { Remove-Item -Path $filename }
-
-    $list | Get-Unique | Out-File $filename
+	param
+	(
+		$entries,
+		$folder,
+		$format = 'csv'
+	)
+	
+	Write-Host "Generating Skater Email List ($format)"
+	
+	if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
+	{
+		New-Item $folder -Type Directory | Out-Null
+	}
+	
+	$filename = [System.IO.Path]::Combine($folder, "skater_email_list.${format}")
+	
+	$list = @{ }
+	foreach ($entry in $entries)
+	{
+		$name = $entry.'Skater 1 Name'
+		$email = $entry.'Skater 1 Contact E-mail:'
+		if (-not $list.ContainsKey($name))
+		{
+			$list.Add($name, $email)
+		}
+		
+		$name = $entry.'Skater 2 Name'
+		$email = $entry.'Skater 2 Contact E-mail:'
+		if (-not $list.ContainsKey($name))
+		{
+			$list.Add($name, $email)
+		}
+	}
+	
+	$headers = @('Name', 'E-Mail')
+	$rows = @()
+	foreach ($name in $list.Keys)
+	{
+		$rows += (@{ 'border' = $true; 'values' = @($name, $list[$name]) })
+	}
+	New-SpreadSheet -name "Skater Email List" -path $filename -headers $headers -rows $rows -format $format
 }
 
-#--------------------------------------------------------------------------------
-# FUNCTION:
-#  generate_coach_email_list
-#
-# DESCRIPTION:
-##--------------------------------------------------------------------------------
-function generate_coach_email_list($entries, $folder)
+<#
+	.SYNOPSIS
+		Create list of coach email addresses
+	
+	.DESCRIPTION
+		A detailed description of the New-CoachEmailList function.
+	
+	.PARAMETER entries
+		A description of the entries parameter.
+	
+	.PARAMETER folder
+		A description of the folder parameter.
+	
+	.EXAMPLE
+				PS C:\> New-CoachEmailList
+	
+	.NOTES
+		Additional information about the function.
+#>
+function New-CoachEmailList
 {
-    Write-Host "Generating Coach Email List"
-
-    if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
-    {
-        New-Item $folder -Type Directory | Out-Null
-    }
-
-    $filename = [System.IO.Path]::Combine($folder, "coach_email_list.txt")
-
-    $list = @()
-    foreach ($entry in $entries)
-    {
-        $list += $entry.'Primary Coach E-mail:'
-    }
-
-    if (Test-Path $filename) { Remove-Item -Path $filename }
-
-    $list | Get-Unique | Out-File $filename
+	param
+	(
+		$entries,
+		$folder,
+		$format = 'csv'
+	)
+	
+	Write-Host "Generating Coach Email List ($format)"
+	
+	if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
+	{
+		New-Item $folder -Type Directory | Out-Null
+	}
+	
+	$filename = [System.IO.Path]::Combine($folder, "coach_email_list.${format}")
+	
+	$headers = @('Coach Name', 'Coach E-Mail')
+	$rows = @()
+	foreach ($entry in $entries)
+	{
+		$rows += (@{ 'border' = $true; 'values' = @($entry.'Primary Coach Name:', $entry.'Primary Coach E-mail:') })
+	}
+	
+	New-Spreadsheet -name "Coach E-Mail List" -path $filename -headers $headers -rows $rows -format $format
 }
 
-#--------------------------------------------------------------------------------
-# FUNCTION:
-#  generate_registration_list
-#
-# DESCRIPTION:
-#
-#--------------------------------------------------------------------------------
-function generate_registration_list($entries, $folder)
+<#
+	.SYNOPSIS
+		Create Registration List
+	
+	.DESCRIPTION
+		This creates a list of skaters, for use at the front door to "check off" skaters as they arrive.
+		This currently prints out an option for fruit/water but could be modified to include things like "has been given a goodie bag" etc.
+	
+	.PARAMETER entries
+		A description of the entries parameter.
+	
+	.PARAMETER folder
+		A description of the folder parameter.
+	
+	.PARAMETER format
+		A description of the format parameter.
+	
+	.EXAMPLE
+		PS C:\> New-RegistrationList
+	
+	.NOTES
+		Additional information about the function.
+#>
+function New-RegistrationList
 {
-    Write-Host "Generating Registration List"
-
-    if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
-    {
-        New-Item $folder -Type Directory | Out-Null
-    }
-
-    $list_csv = [System.IO.Path]::Combine($folder, "registration_list.csv")
-
-    $hash = @{}
-    foreach ($entry in $entries)
-    {
-        $surname = ConvertTo-CapitalizedName -name $entry.'Last Name'
-        if (!$hash.ContainsKey($surname))
-        {
-            $hash[$surname] = @{}
-        }
-        $firstname = ConvertTo-CapitalizedName -name $entry.'First Name'
-        if (!$hash[$surname].ContainsKey($firstname))
-        {
-            $hash[$surname].Add($firstname, $true)
-        }
-
-        if ($entry.Division -match 'Dance')
-        {
-            $surname = ConvertTo-CapitalizedName -name $entry.'Skater 2 Name (Last Name)'
-            if (!$hash.ContainsKey($surname))
-            {
-                $hash[$surname] = @{}
-            }
-            $firstname = ConvertTo-CapitalizedName -name $entry.'Skater 2 Name (First Name)'
-            if (!$hash[$surname].ContainsKey($firstname))
-            {
-                $hash[$surname].Add($firstname, $true)
-            }
-        }
-    }
-
-    if (Test-Path $list_csv) { Remove-Item -Path $list_csv }
-
-    Add-Content -Path $list_csv -Value "Skater Surname, Skater First Name, Water, Fruit"
-    foreach ($surname in $hash.Keys | Sort)
-    {
-        $name = $hash.Item($surname)
-        foreach ($firstname in $name.Keys | sort)
-        {
-            "{0},{1}" -f $surname, $firstname | Add-Content -Path $list_csv
-        }
-    }
+	param
+	(
+		$entries,
+		$folder,
+		$format = 'csv'
+	)
+	
+	Write-Host "Generating Skater Registration List ($format)"
+	
+	if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
+	{
+		New-Item $folder -Type Directory | Out-Null
+	}
+	
+	$filename = [System.IO.Path]::Combine($folder, "registration_list.${format}")
+	
+	$hash = @{ }
+	foreach ($entry in $entries)
+	{
+		$surname = ConvertTo-CapitalizedName -name $entry.'Last Name'
+		if (!$hash.ContainsKey($surname))
+		{
+			$hash[$surname] = @{ }
+		}
+		$firstname = ConvertTo-CapitalizedName -name $entry.'First Name'
+		
+		if (-not $hash[$surname].ContainsKey($firstname))
+		{
+			$hash[$surname].Add($firstname, $true)
+		}
+		
+		if ($entry.Division -match 'Dance')
+		{
+			$surname = ConvertTo-CapitalizedName -name $entry.'Skater 2 Name: (Last Name)'
+			if (!$hash.ContainsKey($surname))
+			{
+				$hash[$surname] = @{ }
+			}
+			$firstname = ConvertTo-CapitalizedName -name $entry.'Skater 2 Name: (First Name)'
+			if (-not $hash[$surname].ContainsKey($firstname))
+			{
+				$hash[$surname].Add($firstname, $true)
+			}
+		}
+	}
+	
+	$headers = @('Skater Surname', 'Skater First Name', 'Water', 'Fruit')
+	$rows = @()
+	foreach ($surname in $hash.Keys | Sort-Object)
+	{
+		$name = $hash.Item($surname)
+		foreach ($firstname in $name.Keys | Sort-Object)
+		{
+			$rows += (@{ 'border' = $true; 'values' = @($surname, $firstname, '', '') })
+		}
+	}
+	New-SpreadSheet -name "Skater Registration List" -path $filename -headers $headers -rows $rows -format $format
 }
 
-#--------------------------------------------------------------------------------
-# FUNCTION:
-#  generate_volunteer_spreadsheet
-#
-# DESCRIPTION:
-#
-#--------------------------------------------------------------------------------
-function generate_volunteer_spreadsheet($entries, $folder)
+<#
+	.SYNOPSIS
+		Create Volunteer Spreadsheet
+	
+	.DESCRIPTION
+		A detailed description of the New-VolunteerSpreadsheet function.
+	
+	.PARAMETER entries
+		A description of the entries parameter.
+	
+	.PARAMETER folder
+		A description of the folder parameter.
+	
+	.EXAMPLE
+				PS C:\> New-VolunteerSpreadsheet
+	
+	.NOTES
+		Additional information about the function.
+#>
+function New-VolunteerSpreadsheet
 {
-    Write-Host "Generating Volunteer Spreadsheet"
-
-    if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
-    {
-        New-Item $folder -Type Directory | Out-Null
-    }
-
-    $spreadsheet = [System.IO.Path]::Combine($folder, "NFC_volunteer.csv");
-
-    $results = @()
-    foreach ($entry in $entries)
-    {
-        if (-not [String]::IsNullOrEmpty($entry.'I am able to assist with the following tasks:'))
-        {
-            $category  = $entry.Division.Split(";")[0].trim()
-            $division  = $entry.Division.Split(";")[1].trim()
-
-            if ($category -eq "Adult")
-            {
-                $division = "Adult ${division}"
-            }
-
-            $results += New-Object -TypeName PSObject -Property @{
-                    "Name"              = $entry.'Skater 1 Name'
-                    "Division"          = $division
-                    "Volunteer Name"    = $entry.'Volunteer Name'
-                    "Volunteer E-mail"  = $entry.'Volunteer E-mail'
-                    "Volunteer Phone"   = $entry.'Volunteer Contact Mobile'
-                    "Availability"      = $entry.'Availability:'
-                    "Roles"             = $entry.'I am able to assist with the following tasks:'
-                    "Other Notes"       = $entry.'Other Notes:'
-            }
-        }
-    }
-
-    if ($results.Count -gt 0)
-    {
-        $results | export-csv -path $spreadsheet -Force -NoTypeInformation
-    }
+	param
+	(
+		$entries,
+		$folder,
+		$format = 'csv'
+	)
+	
+	Write-Host "Generating Volunteer Spreadsheet ($format)"
+	
+	if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
+	{
+		New-Item $folder -Type Directory | Out-Null
+	}
+	
+	$spreadsheet = [System.IO.Path]::Combine($folder, "volunteer.${format}");
+	
+	$headers = @("Name", "Division", "Volunteer Name", "Volunteer E-mail", "Volunteer Phone", "Availability", "Roles", "Other Notes")
+	$rows = @()
+	foreach ($entry in $entries)
+	{
+		if (-not [String]::IsNullOrEmpty($entry.'I am able to assist with the following tasks:'))
+		{
+			$category = $entry.Division.Split(";")[0].trim()
+			$division = $entry.Division.Split(";")[1].trim()
+			
+			if ($category -eq "Adult")
+			{
+				$division = "Adult ${division}"
+			}
+			
+			$rows += (@{
+					'border' = $true;
+					'values' = @($entry.'Skater 1 Name',
+						$division,
+						$entry.'Volunteer Name',
+						$entry.'Volunteer E-mail',
+						$entry.'Volunteer Contact Mobile',
+						$entry.'Availability:',
+						$entry.'I am able to assist with the following tasks:',
+						$entry.'Other Notes:')
+				})
+		}
+	}
+	New-Spreadsheet -name "Volunteers" -path $spreadsheet -headers $headers -rows $rows -format $format
 }
 
-#--------------------------------------------------------------------------------
-# FUNCTION:
-#  generate_payment_spreadsheet
-#
-# DESCRIPTION:
-#
-#--------------------------------------------------------------------------------
-function generate_payment_spreadsheet($entries, $folder)
+<#
+	.SYNOPSIS
+		Create Payment Spreadsheet
+	
+	.DESCRIPTION
+		A detailed description of the New-PaymentSpreadsheet function.
+	
+	.PARAMETER entries
+		A description of the entries parameter.
+	
+	.PARAMETER folder
+		A description of the folder parameter.
+	
+	.EXAMPLE
+				PS C:\> New-PaymentSpreadsheet
+	
+	.NOTES
+		Additional information about the function.
+#>
+function New-PaymentSpreadsheet
 {
-    Write-Host "Generating Payment Spreadsheet"
-
-    if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
-    {
-        New-Item $folder -Type Directory | Out-Null
-    }
-
-    $spreadsheet = [System.IO.Path]::Combine($folder, "payments.csv");
-
-    $results = @()
-    foreach ($entry in $entries)
-    {
-        $category  = $entry.Division.Split(";")[0].trim()
-        $division  = $entry.Division.Split(";")[1].trim()
-
-        if ($category -eq "Adult")
-        {
-            $division = "Adult ${division}"
-        }
-
-        $results += New-Object -TypeName PSObject -Property @{
-                "Skater Name"                     = $entry.'Skater 1 Name'
-                "Division"                        = $division
-                "Parent/Guardian (if applicable)" = $entry.'Parent/Guardian Name: (First Name)' + ' ' + $entry.'Parent/Guardian Name: (Last Name)'
-                "Payment Due (AUD)"               = $entry.'Payment due (AUD)'
-                "Direct Debit Receipt"            = $entry.'Direct Debit Receipt'
-        }
-    }
-
-    if ($results.Count -gt 0)
-    {
-        $results | Select-Object "Skater Name", "Division", "Parent/Guardian (if applicable)", "Payment Due (AUD)", "Direct Debit Receipt" | export-csv -path $spreadsheet -Force -NoTypeInformation
-    }
+	param
+	(
+		$entries,
+		[string]
+		$folder,
+		[string]
+		$format = 'csv'
+	)
+	
+	Write-Host "Generating Payment Spreadsheet ($format)"
+	
+	if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
+	{
+		New-Item $folder -Type Directory | Out-Null
+	}
+	
+	$filepath = [System.IO.Path]::Combine($folder, "payments.${format}");
+	
+	$rows = @()
+	foreach ($entry in $entries)
+	{
+		$category = $entry.Division.Split(";")[0].trim()
+		$division = $entry.Division.Split(";")[1].trim()
+		
+		if ($category -eq "Adult")
+		{
+			$division = "Adult ${division}"
+		}
+		
+		$parentName = $entry.'Parent/Guardian Name: (First Name)' + ' ' + $entry.'Parent/Guardian Name: (Last Name)'
+		$rows += (@{
+				'border' = $true;
+				'values' = @(
+					$entry.'Skater 1 Name',
+					$division,
+					$parentName,
+					$entry.'Payment due (AUD)',
+					$entry.'Direct Debit Receipt')
+			})
+	}
+	
+	if ($rows.Count -gt 0)
+	{
+		$headers = @("Skater Name", "Division", "Parent/Guardian (if applicable)", "Payment Due (AUD)", "Direct Debit Receipt")
+		New-SpreadSheet -name "Payments" -path $filepath -headers $headers -rows $rows -format $format
+	}
 }
 
-#--------------------------------------------------------------------------------
-# FUNCTION:
-#  generate_coach_skaters_list
-#
-# DESCRIPTION:
-#
-#--------------------------------------------------------------------------------
-function generate_coach_skaters_list($entries, $folder)
+<#
+	.SYNOPSIS
+		Create List of Coaches, and their skaters
+	
+	.DESCRIPTION
+		A detailed description of the New-CoachSkatersList function.
+	
+	.PARAMETER entries
+		A description of the entries parameter.
+	
+	.PARAMETER folder
+		A description of the folder parameter.
+	
+	.EXAMPLE
+				PS C:\> New-CoachSkatersList
+	
+	.NOTES
+		Additional information about the function.
+#>
+function New-CoachSkatersList
 {
-    Write-Host "Generating Coach/Skaters List"
-
-    if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
-    {
-        New-Item $folder -Type Directory | Out-Null
-    }
-
-    $outfile = [System.IO.Path]::Combine($folder, "coach_skaters.txt")
-
-    if (Test-Path $outfile) { Remove-Item -Path $outfile }
-
-    $hash = @{}
-    foreach ($entry in $entries)
-    {
-        $coach_name  = $entry.'Primary Coach Name:'
-        $coach_email = $entry.'Primary Coach E-mail:'
-
-        #Write-Host "---------------------------"
-        #Write-Host "Skater: $($entry.'Skater 1 Name')"
-        #Write-Host "Division: $($entry.'Division')"
-        #Write-Host "Coach Name: $coach_name"
-        #Write-Host "Coach Email: $coach_email"
-
-        if (!$hash.ContainsKey($coach_name))
-        {
-            $hash[$coach_name] = @()
-        }
-        $hash[$coach_name] += $entry.'Skater 1 Name' + " ($($entry.Division))"
-    }
-
-    Add-Content -Path $outfile -Value "Coach Name: Skaters"
-
-    foreach ($c in $hash.Keys | Sort)
-    {
-        "{0}: {1}" -f $c, ($hash[$c] -join ", ") | Add-Content -Path $outfile
-    }
+	param
+	(
+		$entries,
+		[string]
+		$folder,
+		[string]
+		$format = 'csv'
+	)
+	
+	Write-Host "Generating Coach/Skaters List ($format)"
+	
+	if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
+	{
+		New-Item $folder -Type Directory | Out-Null
+	}
+	
+	$outfile = [System.IO.Path]::Combine($folder, "coach_skaters.${format}")
+	
+	if (Test-Path $outfile) { Remove-Item -Path $outfile }
+	
+	$hash = @{ }
+	foreach ($entry in $entries)
+	{
+		$coach_name = $entry.'Primary Coach Name:'
+		$coach_email = $entry.'Primary Coach E-mail:'
+		
+		if (!$hash.ContainsKey($coach_name))
+		{
+			$hash[$coach_name] = @()
+		}
+		$hash[$coach_name] += $entry.'Skater 1 Name' + " ($($entry.Division))"
+		if (![String]::IsNullOrEmpty($entry.'Skater 1 Name'))
+		{
+			$hash[$coach_name] += $entry.'Skater 2 Name' + " ($($entry.Division))"
+		}
+	}
+	
+	$headers = @('Coach Name', 'Skater')
+	$rows = @()
+	
+	foreach ($coach_name in $hash.Keys | Sort-Object)
+	{
+		foreach ($skater in $hash[$coach_name])
+		{
+			$rows += (@{ 'border' = $true; 'values' = @($coach_name, $skater) })
+		}
+	}
+	New-Spreadsheet -name "Coach Skaters" -path $outfile -headers $headers -rows $rows -format $format
 }
 
-#--------------------------------------------------------------------------------
-# FUNCTION:
-#  generate_photo_permission_list
-#
-# DESCRIPTION:
-#
-#--------------------------------------------------------------------------------
-function generate_photo_permission_list($entries, $folder)
+<#
+	.SYNOPSIS
+		Create Photo Permission List
+	
+	.DESCRIPTION
+		A detailed description of the New-PhotoPermissionList function.
+	
+	.PARAMETER entries
+		A description of the entries parameter.
+	
+	.PARAMETER folder
+		A description of the folder parameter.
+	
+	.EXAMPLE
+				PS C:\> New-PhotoPermissionList
+	
+	.NOTES
+		Additional information about the function.
+#>
+function New-PhotoPermissionList
 {
-    Write-Host "Generating Photo Permission List"
-
-    if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
-    {
-        New-Item $folder -Type Directory | Out-Null
-    }
-
-    $spreadsheet = [System.IO.Path]::Combine($folder, "photo_permissions.csv");
-
-    $results = @()
-    foreach ($entry in $entries)
-    {
-        $category = $entry.Division.Split(";")[0].trim()
-        $division = $entry.Division.Split(";")[1].trim()
-        $results += New-Object -TypeName PSObject -Property @{
-                "Category" = $category
-                "Division" = $division
-                "Skater 1 Name" = $entry.'Skater 1 Name'
-                "Skater 2 Name" = $entry.'Skater 2 Name'
-                "ACTISA granted permission to use photos" = $entry.'I give permission for the Australian Capital Territory Ice Skating Association (ACTISA) to take photographs of myself/my child, and use the footage for promotional purposes on the official ACTISA website and social media.'
-        }
-    }
-
-    if ($results.Count -gt 0)
-    {
-        $results | Select-Object "Category", "Division", "Skater 1 Name", "Skater 2 Name", "ACTISA granted permission to use photos" | export-csv -path $spreadsheet -Force -NoTypeInformation
-    }
+	param
+	(
+		$entries,
+		$folder,
+		$format = 'csv'
+	)
+	
+	Write-Host "Generating Photo Permission List ($format)"
+	
+	if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
+	{
+		New-Item $folder -Type Directory | Out-Null
+	}
+	
+	$outfile = [System.IO.Path]::Combine($folder, "photo_permissions.${format}");
+	
+	$headers = @("Category", "Division", "Skater 1 Name", "Skater 2 Name", "ACTISA granted permission to use photos")
+	$rows = @()
+	foreach ($entry in $entries)
+	{
+		$catdiv = $entry.Division.Split(";")
+		$category = $catdiv[0].trim()
+		$division = $catdiv[1].trim()
+		$rows += (@{
+				'border' = $true;
+				'values' = @($category,
+					$division,
+					$entry.'Skater 1 Name',
+					$entry.'Skater 2 Name',
+					$entry.'I give permission for the Australian Capital Territory Ice Skating Association (ACTISA) to take photographs of myself/my child, and use the footage for promotional purposes on the official ACTISA website and social media.'
+				)
+			})
+	}
+	New-Spreadsheet -name "Photo Permissions" -path $outfile -headers $headers -rows $rows -format $format
 }
 
 function New-ProofOfAgeAndMemberships
@@ -1572,13 +1659,27 @@ function New-ProofOfAgeAndMemberships
 #------------------------          MAIN CONTROL          ------------------------
 #================================================================================
 
-# prompt the user to specify location
-$comp_folder     = Find-Folders -title "Select the Competition folder (default=$comp_folder)" -default $comp_folder
-$template_folder = Find-Folders -title "Select the MailMerge Template folder (default=$template_folder)" -default $template_folder
+if ($prompt)
+{
+	# prompt the user to specify location
+	$comp_folder = Find-Folders -title "Select the Competition folder (default = $comp_folder)" -default $comp_folder
+	$template_folder = Find-Folders -title "Select the MailMerge Template folder (default = $template_folder)" -default $template_folder
+}
+else
+{
+	if (!(Test-Path -Path $comp_folder -ErrorAction SilentlyContinue))
+	{
+		New-Item -ItemType Directory -Force -Path $comp_folder | Out-Null
+	}
+	if (!(Test-Path -Path $template_folder -ErrorAction SilentlyContinue))
+	{
+		New-Item -ItemType Directory -Force -Path $template_folder | Out-Null
+	}
+}
 
 Push-Location $comp_folder
 
-foreach ($f in ('Submissions','Music','PPC','Certificates','Schedule'))
+foreach ($f in ('Submissions', 'Music', 'PPC', 'Certificates', 'Schedule'))
 {
     if ((Test-Path $f -ErrorAction SilentlyContinue) -eq $false)
     {
@@ -1597,27 +1698,35 @@ $schedule_folder    = [System.IO.Path]::Combine($comp_folder, "Schedule")
 Write-Host "Competition Folder: $comp_folder"
 write-host "Music Folder: $music_folder"
 
-$entries = Get-SubmissionEntries -url $google_sheet_url
+$entries = @()
+foreach ($entry in (Get-SubmissionEntries -url $google_sheet_url))
+{
+	# strip out entries with no submission ID
+	if (-not [String]::IsNullOrWhiteSpace($entry.'Submission ID'))
+	{
+		$entries += $entry
+	}
+}
 
 foreach ($entry in $entries)
 {
-    process_music_files -entry $entry -submissionFullPath $submissionFullPath -music_folder $music_folder
+	Publish-EntryMusicFiles -entry $entry -submissionFullPath $submissionFullPath -music_folder $music_folder
 }
 
 Write-Host "Number of entries = $($entries.Count)`n" -ForegroundColor Yellow
 
-generate_ppc_forms             -entries $entries -folder $ppc_folder
-generate_certificates          -entries $entries -folder $certificate_folder
+New-PPCForms                   -entries $entries -folder $ppc_folder
+New-CertificateList            -entries $entries -folder $certificate_folder
 generate_skating_schedule      -entries $entries -folder $schedule_folder
-generate_division_counts       -entries $entries -folder $comp_folder
-generate_engraving_schedule    -entries $entries -folder $comp_folder
-generate_registration_list     -entries $entries -folder $comp_folder
-generate_volunteer_spreadsheet -entries $entries -folder $comp_folder
-generate_payment_spreadsheet   -entries $entries -folder $comp_folder
-generate_skater_email_list     -entries $entries -folder $comp_folder
-generate_coach_email_list      -entries $entries -folder $comp_folder
-generate_coach_skaters_list    -entries $entries -folder $comp_folder
-generate_photo_permission_list -entries $entries -folder $comp_folder
+New-DivisionCountsSpreadsheet -entries $entries -folder $comp_folder -format 'xlsx'
+New-EngravingSchedule -entries $entries -folder $comp_folder
+New-RegistrationList -entries $entries -folder $comp_folder -format 'xlsx'
+New-VolunteerSpreadsheet -entries $entries -folder $comp_folder -format 'xlsx'
+New-PaymentSpreadsheet -entries $entries -folder $comp_folder -format 'xlsx'
+New-SkaterEmailList -entries $entries -folder $comp_folder -format 'xlsx'
+New-CoachEmailList -entries $entries -folder $comp_folder -format 'xlsx'
+New-CoachSkatersList -entries $entries -folder $comp_folder -format 'xlsx'
+New-PhotoPermissionList -entries $entries -folder $comp_folder -format 'xlsx'
 New-ProofOfAgeAndMemberships -entries $entries -folder $comp_folder -format 'xlsx'
 
 #Read-Host -Prompt "Press Enter to exit"
