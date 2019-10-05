@@ -22,7 +22,8 @@
 #>
 param
 (
-	[bool]$prompt = $true
+	[bool]
+	$prompt = $true
 )
 
 [Reflection.Assembly]::LoadWithPartialName("System.Web") | Out-Null
@@ -324,11 +325,14 @@ function Publish-EntryMusicFiles
 	param
 	(
 		[Parameter(Mandatory = $true)]
-		[pscustomobject]$entry,
+		[pscustomobject]
+		$entry,
 		[Parameter(Mandatory = $true)]
-		[string]$music_folder,
+		[string]
+		$music_folder,
 		[Parameter(Mandatory = $true)]
-		[string]$submissionFullPath
+		[string]
+		$submissionFullPath
 	)
 	
 	$submission_id = $entry.'Submission ID'
@@ -697,8 +701,15 @@ function New-CertificateList
 	{
 		Write-Host " - generating $($spring_results.Count) Spring Comp Certificates."
 		$spring_results | Select-Object "Name", "Division" | export-csv -path $spring_comp_csv -Force -NoTypeInformation
-		$spring_comp_template = Find-Template -message "Select Spring Comp Certificate Template" -initial_dir $template_folder -default $certificate_template_spring_comp
-		Invoke-MailMerge -template $spring_comp_template -datasource $spring_comp_csv -destination $folder
+		if ($prompt)
+		{
+			$certificate_template_spring_comp = Find-Template -message "Select Spring Comp Certificate Template" -initial_dir $template_folder -default $certificate_template_spring_comp
+		}
+		else
+		{
+			$certificate_template_spring_comp = Resolve-Path -Path "${template_folder}/${certificate_template_spring_comp}"
+		}
+		Invoke-MailMerge -template $certificate_template_spring_comp -datasource $spring_comp_csv -destination $folder
 	}
 	else
 	{
@@ -709,8 +720,15 @@ function New-CertificateList
 	{
 		Write-Host " - generating $($champs_results.Count) ACT Champs Certificates."
 		$champs_results | Select-Object "Name", "Division" | export-csv -path $act_champs_csv -Force -NoTypeInformation
-		$act_champs_template = Find-Template -message "Select ACT Champs Certificate Template" -initial_dir $template_folder -default $certificate_template_act_champs
-		Invoke-MailMerge -template $act_champs_template -datasource $act_champs_csv -destination $folder
+		if ($prompt)
+		{
+			$certificate_template_act_champs = Find-Template -message "Select ACT Champs Certificate Template" -initial_dir $template_folder -default $certificate_template_act_champs
+		}
+		else
+		{
+			$certificate_template_act_champs = Resolve-Path -Path "${template_folder}/${certificate_template_act_champs}"
+		}
+		Invoke-MailMerge -template $certificate_template_act_champs -datasource $act_champs_csv -destination $folder
 	}
 	else
 	{
@@ -800,6 +818,11 @@ function New-SkatingSchedule
 			$performance_time = 3
 		}
 		elseif ($category -eq 'Singles' -and $division -eq 'Elementary')
+		{
+			$warmup = 4
+			$performance_time = 4
+		}
+		elseif ($category -eq 'Singles' -and $division -eq 'Basic Novice')
 		{
 			$warmup = 4
 			$performance_time = 4
@@ -1082,6 +1105,12 @@ function New-EngravingSchedule
 	$MedalWord = New-Object -ComObject Word.Application
 	$MedalWord.Visible = $False
 	$MedalDoc = $MedalWord.Documents.Add()
+	$MedalSelection = $MedalWord.Selection
+	$MedalSelection.PageSetup.LeftMargin = 36
+	$MedalSelection.PageSetup.RightMargin = 36
+	$MedalSelection.PageSetup.TopMargin = 36
+	$MedalSelection.PageSetup.BottomMargin = 36
+	$MedalSelection.paragraphFormat.Alignment = [Microsoft.Office.Interop.Word.WdParagraphAlignment]::wdAlignParagraphCenter
 	$MedalTable = $MedalDoc.Tables.Add($MedalWord.Selection.Range(), 2, 4)
 	$MedalTable.Range.Style = "No Spacing"
 	$MedalTable.Borders.Enable = $True
@@ -1103,18 +1132,19 @@ function New-EngravingSchedule
 	$TrophyTable.Borders.Enable = $True
 	$TrophyTable.Rows(2).Cells(1).Range.Text = "Division"
 	$TrophyTable.Rows(2).Cells(1).Range.Bold = $True
+	$TrophyTable.Select()
 	
 	# Create the title row on each table
 	$Row = $MedalTable.Rows(1)
 	$Row.Cells.Merge()
 	$Row.Cells(1).Range.Text = "$Competition engraving schedule - MEDALS"
 	$Row.Cells(1).Range.Bold = $true
-	$Row.Cells(1).Range.paragraphFormat.Alignment = [Microsoft.Office.Interop.Word.WdParagraphAlignment]::wdAlignParagraphCenter
 	$Row = $TrophyTable.Rows(1)
 	$Row.Cells.Merge()
 	$Row.Cells(1).Range.Text = "$Competition engraving schedule - TROPHY"
 	$Row.Cells(1).Range.Bold = $true
-	$Row.Cells(1).Range.paragraphFormat.Alignment = [Microsoft.Office.Interop.Word.WdParagraphAlignment]::wdAlignParagraphCenter
+	
+	#$Row.Cells(1).Range.paragraphFormat.Alignment = [Microsoft.Office.Interop.Word.WdParagraphAlignment]::wdAlignParagraphCenter
 	
 	foreach ($div in $divhash.Keys | Sort-Object)
 	{
@@ -1154,6 +1184,12 @@ function New-EngravingSchedule
 		if ($count -ge 2) { $Row.Cells(3).Range.Text = "${Engraving_Title}`r$division`r2nd Place" }
 		if ($count -ge 3) { $Row.Cells(4).Range.Text = "${Engraving_Title}`r$division`r3rd Place" }
 	}
+	
+	$TrophyTable.Select()
+	$TrophySelection.paragraphFormat.Alignment = [Microsoft.Office.Interop.Word.WdParagraphAlignment]::wdAlignParagraphCenter
+	
+	$MedalTable.Select()
+	$MedalSelection.paragraphFormat.Alignment = [Microsoft.Office.Interop.Word.WdParagraphAlignment]::wdAlignParagraphCenter
 	
 	# Save the documents
 	$MedalDoc.SaveAs($medalPath, [Microsoft.Office.Interop.Word.WdSaveFormat]::wdFormatDocumentDefault)
@@ -1217,6 +1253,13 @@ function New-SkaterEmailList
 	{
 		$name = $entry.'Skater 1 Name'
 		$email = $entry.'Skater 1 Contact E-mail:'
+		if (-not $list.ContainsKey($name))
+		{
+			$list.Add($name, $email)
+		}
+		
+		$name = $entry.'Skater 2 Name'
+		$email = $entry.'Skater 2 Contact E-mail:'
 		if (-not $list.ContainsKey($name))
 		{
 			$list.Add($name, $email)
@@ -1454,8 +1497,10 @@ function New-PaymentSpreadsheet
 	param
 	(
 		$entries,
-		[string]$folder,
-		[string]$format = 'csv'
+		[string]
+		$folder,
+		[string]
+		$format = 'csv'
 	)
 	
 	Write-Host "Generating Payment Spreadsheet ($format)"
@@ -1521,8 +1566,10 @@ function New-CoachSkatersList
 	param
 	(
 		$entries,
-		[string]$folder,
-		[string]$format = 'csv'
+		[string]
+		$folder,
+		[string]
+		$format = 'csv'
 	)
 	
 	Write-Host "Generating Coach/Skaters List ($format)"
@@ -1623,6 +1670,82 @@ function New-PhotoPermissionList
 	New-Spreadsheet -name "Photo Permissions" -path $outfile -headers $headers -rows $rows -format $format
 }
 
+function New-ProofOfAgeAndMemberships
+{
+	[CmdletBinding()]
+	param
+	(
+		$entries,
+		$folder,
+		$format = 'csv'
+	)
+	
+	Write-Host "Generating POA/Memberships List ($format)"
+	
+	if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
+	{
+		New-Item $folder -Type Directory | Out-Null
+	}
+	
+	$outfile = [System.IO.Path]::Combine($folder, "poa_and_memberships.${format}")
+	
+	if (Test-Path $outfile) { Remove-Item -Path $outfile -ErrorAction SilentlyContinue }
+	
+	$list = @{ }
+	foreach ($entry in $entries)
+	{
+		$catdiv = $entry.Division.Split(";")
+		$category = $catdiv[0].trim()
+		$division = $catdiv[1].trim()
+		
+		$name = $entry.'Skater 1 Name'
+		if (-not $list.ContainsKey($name))
+		{
+			Write-Host "Name1: '$name'"
+			$list.Add($name,
+				@(
+					$name,
+					$entry.'Skater 1 State/Territory:',
+					$category,
+					$division,
+					$entry.'Primary Coach Name:',
+					$entry.'Other Coach Names:',
+					$entry.'Skater 1 Membership Number:'
+					$entry.'Skater 1 Proof Of Age (POA):'
+				))
+		}
+		
+		$name = $entry.'Skater 2 Name'
+		if (![string]::IsNullOrEmpty($name))
+		{
+			if (-not $list.ContainsKey($name))
+			{
+				Write-Host "Name2: '$name'"
+				$list.Add($name,
+					@(
+						$name,
+						$entry.'Skater 2 State/Territory:',
+						$category,
+						$division,
+						$entry.'Primary Coach Name:',
+						$entry.'Other Coach Names:',
+						$entry.'Skater 2 Membership Number:'
+						$entry.'Skater 2 Proof Of Age (POA):'
+					))
+			}
+		}
+		
+	}
+	
+	$headers = @('Name', 'State', 'Category', 'Division', 'Primary Coach', 'Other Coaches', 'Membership #', 'POA')
+	$rows = @()
+	foreach ($entry in $list.Values)
+	{
+		$rows += (@{ 'border' = $true; 'values' = $entry })
+	}
+	New-SpreadSheet -name "POA and Membership Numbers" -path $outfile -headers $headers -rows $rows -format $format
+}
+
 #================================================================================
 #------------------------          MAIN CONTROL          ------------------------
 #================================================================================
@@ -1696,5 +1819,6 @@ New-SkaterEmailList -entries $entries -folder $comp_folder -format 'xlsx'
 New-CoachEmailList -entries $entries -folder $comp_folder -format 'xlsx'
 New-CoachSkatersList -entries $entries -folder $comp_folder -format 'xlsx'
 New-PhotoPermissionList -entries $entries -folder $comp_folder -format 'xlsx'
+New-ProofOfAgeAndMemberships -entries $entries -folder $comp_folder -format 'xlsx'
 
 #Read-Host -Prompt "Press Enter to exit"
