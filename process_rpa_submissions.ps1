@@ -1628,6 +1628,82 @@ function New-PhotoPermissionList
 	}
 }
 
+function New-ProofOfAgeAndMemberships
+{
+	[CmdletBinding()]
+	param
+	(
+		$entries,
+		$folder,
+		$format = 'csv'
+	)
+	
+	Write-Host "Generating POA/Memberships List ($format)"
+	
+	if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
+	{
+		New-Item $folder -Type Directory | Out-Null
+	}
+	
+	$outfile = [System.IO.Path]::Combine($folder, "poa_and_memberships.${format}")
+	
+	if (Test-Path $outfile) { Remove-Item -Path $outfile -ErrorAction SilentlyContinue }
+	
+	$list = @{ }
+	foreach ($entry in $entries)
+	{
+		$catdiv = $entry.Division.Split(";")
+		$category = $catdiv[0].trim()
+		$division = $catdiv[1].trim()
+		
+		$name = $entry.'Skater 1 Name'
+		if (-not $list.ContainsKey($name))
+		{
+			Write-Host "Name1: '$name'"
+			$list.Add($name,
+				@(
+					$name,
+					$entry.'Skater 1 State/Territory:',
+					$category,
+					$division,
+					$entry.'Primary Coach Name:',
+					$entry.'Other Coach Names:',
+					$entry.'Skater 1 Membership Number:'
+					$entry.'Skater 1 Proof Of Age (POA):'
+				))
+		}
+		
+		$name = $entry.'Skater 2 Name'
+		if (![string]::IsNullOrEmpty($name))
+		{
+			if (-not $list.ContainsKey($name))
+			{
+				Write-Host "Name2: '$name'"
+				$list.Add($name,
+					@(
+						$name,
+						$entry.'Skater 2 State/Territory:',
+						$category,
+						$division,
+						$entry.'Primary Coach Name:',
+						$entry.'Other Coach Names:',
+						$entry.'Skater 2 Membership Number:'
+						$entry.'Skater 2 Proof Of Age (POA):'
+					))
+			}
+		}
+		
+	}
+	
+	$headers = @('Name', 'State', 'Category', 'Division', 'Primary Coach', 'Other Coaches', 'Membership #', 'POA')
+	$rows = @()
+	foreach ($entry in $list.Values)
+	{
+		$rows += (@{ 'border' = $true; 'values' = $entry })
+	}
+	New-SpreadSheet -name "POA and Membership Numbers" -path $outfile -headers $headers -rows $rows -format $format
+}
+
 #================================================================================
 #------------------------          MAIN CONTROL          ------------------------
 #================================================================================
@@ -1676,5 +1752,6 @@ New-SkaterEmailList -entries $entries -folder $comp_folder -format 'xlsx'
 New-CoachEmailList -entries $entries -folder $comp_folder -format 'xlsx'
 New-CoachSkatersList -entries $entries -folder $comp_folder -format 'xlsx'
 New-PhotoPermissionList -entries $entries -folder $comp_folder -format 'xlsx'
+New-ProofOfAgeAndMemberships -entries $entries -folder $comp_folder -format 'xlsx'
 
 #Read-Host -Prompt "Press Enter to exit"
