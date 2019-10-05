@@ -6,10 +6,12 @@
 		Processes Jotform for ACT Championships / Spring Competition.
 	
 	.PARAMETER prompt
-		A description of the prompt parameter.
+		if the user should be prompted for folder/file locations
 	
 	.EXAMPLE
-		PS C:\> .\process_spring_comp_act_champs_submissions.ps1
+		process_spring_comp_act_champs_submissions.ps1
+		process_spring_comp_act_champs_submissions.ps1 -prompt $true
+		process_spring_comp_act_champs_submissions.ps1 -prompt $false
 	
 	.NOTES
 		===========================================================================
@@ -115,7 +117,7 @@ else
 		A description of the program parameter.
 	
 	.EXAMPLE
-				PS C:\> Publish-SkaterMusicFile
+		Publish-SkaterMusicFile -filename $filename -category $category -division $division -gender $gender -skatername $skatername -program $program
 	
 	.NOTES
 		Additional information about the function.
@@ -217,12 +219,6 @@ function Publish-SkaterMusicFile
 	{
 		$extra = $category -replace "\(.*\)", ""
 		$new_music_file = "${extra}${new_music_file}"
-	}
-	
-	if ($category -match 'Couple')
-	{
-		$name = $entry.'Skater 1 Name' + " / " + $entry.'Skater 2 Name';
-		$member_num = $entry.'Skater 1 Membership Number' + " / " + $entry.'Skater 2 Membership Number';
 	}
 	
 	foreach ($key in $abbreviations.Keys)
@@ -1781,10 +1777,10 @@ foreach ($f in ('Submissions', 'Music', 'PPC', 'Certificates', 'Schedule'))
 Pop-Location
 
 $submissionFullPath = [System.IO.Path]::Combine($comp_folder, "Submissions")
-$music_folder = [System.IO.Path]::Combine($comp_folder, "Music")
-$ppc_folder = [System.IO.Path]::Combine($comp_folder, "PPC")
+$music_folder       = [System.IO.Path]::Combine($comp_folder, "Music")
+$ppc_folder         = [System.IO.Path]::Combine($comp_folder, "PPC")
 $certificate_folder = [System.IO.Path]::Combine($comp_folder, "Certificates")
-$schedule_folder = [System.IO.Path]::Combine($comp_folder, "Schedule")
+$schedule_folder    = [System.IO.Path]::Combine($comp_folder, "Schedule")
 
 Write-Host "Competition Folder: $comp_folder"
 write-host "Music Folder: $music_folder"
@@ -1798,7 +1794,6 @@ foreach ($entry in (Get-SubmissionEntries -url $google_sheet_url))
 		$entries += $entry
 	}
 }
-#$entries = Get-SubmissionEntries -url $google_sheet_url
 
 foreach ($entry in $entries)
 {
