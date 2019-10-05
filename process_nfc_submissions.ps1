@@ -39,9 +39,9 @@ Import-Module ACTISA-JotForm
 $MAX_WARMUP_GROUP_SIZE = 8
 
 $abbreviations = @{
-    "Free Skate"      = "FS";
-    "Aussie Skate"    = "AS";
-    "Advanced Novice" = "AdvNov";
+	"Free Skate"	  = "FS";
+	"Aussie Skate"    = "AS";
+	"Advanced Novice" = "AdvNov";
 }
 
 #
@@ -67,7 +67,7 @@ $comp_folder = "D:\ACTISA_COMP - $($Competition)"
 
 if (!(Test-Path -Path $comp_folder))
 {
-    New-Item -ItemType Directory -Force -Path $comp_folder | Out-Null
+	New-Item -ItemType Directory -Force -Path $comp_folder | Out-Null
 }
 
 #================================================================================
@@ -728,96 +728,96 @@ function New-CertificateList
 #--------------------------------------------------------------------------------
 function generate_skating_schedule($entries, $folder)
 {
-    Write-Host "Generating Skating Schedule"
-
-    if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
-    {
-        New-Item $folder -Type Directory | Out-Null
-    }
-
-    $schedule1 = [System.IO.Path]::Combine($folder, "Schedule1.csv")
-    $schedule2 = [System.IO.Path]::Combine($folder, "Schedule2.csv")
-
-    if (Test-Path $schedule1) { Remove-Item -Path $schedule1 }
-    if (Test-Path $schedule2) { Remove-Item -Path $schedule2 }
-    
-    $divhash = @{}
-    foreach ($entry in $entries)
-    {
-        $division = $entry.'Division'
-        if (!$divhash.ContainsKey($division))
-        {
-            $divhash[$division] = @()
-        }
-        $divhash[$division] += $entry
-    }
-
-    #$divhash.GetEnumerator() | Sort Name
-
-    foreach ($div in $divhash.Keys | Sort)
-    {
-        $category  = $div.Split(";")[0].trim()
-        $division  = $div.Split(";")[1].trim()
-
-        if ($category.StartsWith("Aussie Skate (Half"))
-        {
-            $warmup = 3
-            $performance_time = 2
-        }
-        elseif ($category.StartsWith("Aussie Skate (Full"))
-        {
-            $warmup = 3
-            $performance_time = 3
-        }
-        elseif ($category -eq 'Adult')
-        {
-            $warmup = 4
-            $performance_time = 4
-            $division = "Adult $division"
-        }
-        elseif ($category -eq 'Singles' -and $division -eq 'Preliminary')
-        {
-            $warmup = 4
-            $performance_time = 3            
-        }
-        elseif ($category -eq 'Singles' -and $division -eq 'Elementary')
-        {
-            $warmup = 4
-            $performance_time = 4                
-        }
-        else
-        {
-            $warmup = 5
-            $performance_time = 4
-        }
-
-        #Write-Host "Category: $category,Division: $division"
-        Add-Content -Path $schedule1 -Value "Category: $category,Division: $division"
-
-        $count = $divhash.Item($div).Count
-        $num_warmup_groups = [Math]::Ceiling($count/$MAX_WARMUP_GROUP_SIZE)
-        Add-Content -path $schedule1 -Value "Num Entries: $count"
-        "Warmup Time: ($num_warmup_groups x $warmup) = {0} minutes"      -f ($num_warmup_groups * $warmup) | Add-Content -Path $schedule1 
-        "Performance time = ($count x $performance_time) = {0} minutes " -f ($count * $performance_time)   | Add-Content -Path $schedule1 
-
-        Add-Content -path $schedule1 -Value "First Name,Last Name,State,Coach Name,Other Coach Names,Music Title"
-
-        $divhash.Item($div) | ForEach-Object {
-            $num_segments = $_.'Number of Segments in Music'
-            if ($_.'FS/FD Music Details (Segment 1)' -match 'Title: (.*) Artist:')
-            {
-                $music_title = $Matches[1]
-            }
-            else
-            {
-                $music_title = '<NOT PROVIDED>'
-            }
-
-            "`"{0}`",`"{1}`",`"{2}`",`"{3}`",`"{4}`",`"{5}`"" -f $_.'First Name', $_.'Last Name', $_.'Skater 1 State/Territory', $_.'Primary Coach Name:',  $_.'Other Coach Names:', $music_title.Trim() | Add-Content -path $schedule1
-        }
-        Add-Content -Path $schedule1 -Value ""
-    }
-
+	Write-Host "Generating Skating Schedule"
+	
+	if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
+	{
+		New-Item $folder -Type Directory | Out-Null
+	}
+	
+	$schedule1 = [System.IO.Path]::Combine($folder, "Schedule1.csv")
+	$schedule2 = [System.IO.Path]::Combine($folder, "Schedule2.csv")
+	
+	if (Test-Path $schedule1) { Remove-Item -Path $schedule1 }
+	if (Test-Path $schedule2) { Remove-Item -Path $schedule2 }
+	
+	$divhash = @{ }
+	foreach ($entry in $entries)
+	{
+		$division = $entry.'Division'
+		if (!$divhash.ContainsKey($division))
+		{
+			$divhash[$division] = @()
+		}
+		$divhash[$division] += $entry
+	}
+	
+	#$divhash.GetEnumerator() | Sort Name
+	
+	foreach ($div in $divhash.Keys | Sort)
+	{
+		$category = $div.Split(";")[0].trim()
+		$division = $div.Split(";")[1].trim()
+		
+		if ($category.StartsWith("Aussie Skate (Half"))
+		{
+			$warmup = 3
+			$performance_time = 2
+		}
+		elseif ($category.StartsWith("Aussie Skate (Full"))
+		{
+			$warmup = 3
+			$performance_time = 3
+		}
+		elseif ($category -eq 'Adult')
+		{
+			$warmup = 4
+			$performance_time = 4
+			$division = "Adult $division"
+		}
+		elseif ($category -eq 'Singles' -and $division -eq 'Preliminary')
+		{
+			$warmup = 4
+			$performance_time = 3
+		}
+		elseif ($category -eq 'Singles' -and $division -eq 'Elementary')
+		{
+			$warmup = 4
+			$performance_time = 4
+		}
+		else
+		{
+			$warmup = 5
+			$performance_time = 4
+		}
+		
+		#Write-Host "Category: $category,Division: $division"
+		Add-Content -Path $schedule1 -Value "Category: $category,Division: $division"
+		
+		$count = $divhash.Item($div).Count
+		$num_warmup_groups = [Math]::Ceiling($count/$MAX_WARMUP_GROUP_SIZE)
+		Add-Content -path $schedule1 -Value "Num Entries: $count"
+		"Warmup Time: ($num_warmup_groups x $warmup) = {0} minutes" -f ($num_warmup_groups * $warmup) | Add-Content -Path $schedule1
+		"Performance time = ($count x $performance_time) = {0} minutes " -f ($count * $performance_time) | Add-Content -Path $schedule1
+		
+		Add-Content -path $schedule1 -Value "First Name,Last Name,State,Coach Name,Other Coach Names,Music Title"
+		
+		$divhash.Item($div) | ForEach-Object {
+			$num_segments = $_.'Number of Segments in Music'
+			if ($_.'FS/FD Music Details (Segment 1)' -match 'Title: (.*) Artist:')
+			{
+				$music_title = $Matches[1]
+			}
+			else
+			{
+				$music_title = '<NOT PROVIDED>'
+			}
+			
+			"`"{0}`",`"{1}`",`"{2}`",`"{3}`",`"{4}`",`"{5}`"" -f $_.'First Name', $_.'Last Name', $_.'Skater 1 State/Territory', $_.'Primary Coach Name:', $_.'Other Coach Names:', $music_title.Trim() | Add-Content -path $schedule1
+		}
+		Add-Content -Path $schedule1 -Value ""
+	}
+	
 }
 
 <#
@@ -1681,19 +1681,19 @@ Push-Location $comp_folder
 
 foreach ($f in ('Submissions', 'Music', 'PPC', 'Certificates', 'Schedule'))
 {
-    if ((Test-Path $f -ErrorAction SilentlyContinue) -eq $false)
-    {
-        New-Item $f -ItemType Directory | Out-Null
-    }
+	if ((Test-Path $f -ErrorAction SilentlyContinue) -eq $false)
+	{
+		New-Item $f -ItemType Directory | Out-Null
+	}
 }
 
 Pop-Location
 
 $submissionFullPath = [System.IO.Path]::Combine($comp_folder, "Submissions")
-$music_folder       = [System.IO.Path]::Combine($comp_folder, "Music")
-$ppc_folder         = [System.IO.Path]::Combine($comp_folder, "PPC")
+$music_folder = [System.IO.Path]::Combine($comp_folder, "Music")
+$ppc_folder = [System.IO.Path]::Combine($comp_folder, "PPC")
 $certificate_folder = [System.IO.Path]::Combine($comp_folder, "Certificates")
-$schedule_folder    = [System.IO.Path]::Combine($comp_folder, "Schedule")
+$schedule_folder = [System.IO.Path]::Combine($comp_folder, "Schedule")
 
 Write-Host "Competition Folder: $comp_folder"
 write-host "Music Folder: $music_folder"
@@ -1715,9 +1715,9 @@ foreach ($entry in $entries)
 
 Write-Host "Number of entries = $($entries.Count)`n" -ForegroundColor Yellow
 
-New-PPCForms                   -entries $entries -folder $ppc_folder
-New-CertificateList            -entries $entries -folder $certificate_folder
-generate_skating_schedule      -entries $entries -folder $schedule_folder
+New-PPCForms -entries $entries -folder $ppc_folder
+New-CertificateList -entries $entries -folder $certificate_folder
+generate_skating_schedule -entries $entries -folder $schedule_folder
 New-DivisionCountsSpreadsheet -entries $entries -folder $comp_folder -format 'xlsx'
 New-EngravingSchedule -entries $entries -folder $comp_folder
 New-RegistrationList -entries $entries -folder $comp_folder -format 'xlsx'
