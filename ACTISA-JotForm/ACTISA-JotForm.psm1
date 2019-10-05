@@ -506,7 +506,11 @@ function Find-Folders
 	$browse.ShowNewFolderButton = $true
 	$browse.Description = $title
 	
-	$result = $browse.ShowDialog((New-Object System.Windows.Forms.Form -Property @{ TopMost = $true }))
+	$positionForm = New-Object System.Windows.Forms.Form
+	$positionForm.TopMost = $true
+	$positionForm.Location.X = 10
+	$positionForm.Location.Y = 10
+	$result = $browse.ShowDialog($positionForm)
 	if ($result -eq [Windows.Forms.DialogResult]::OK)
 	{
 		$browse.SelectedPath
@@ -564,7 +568,11 @@ function Find-Template
 	
 	# use the second overload of the ShowDialog() method to enforce the dialog being the topmost window.
 	# Create a form on the fly to be the parent, since we won't need it after the dialog is closed anyway.
-	$result = $openFileDialog.ShowDialog((New-Object System.Windows.Forms.Form -Property @{ TopMost = $true }))
+	$positionForm = New-Object System.Windows.Forms.Form
+	$positionForm.TopMost = $true
+	$positionForm.Location.X = 10
+	$positionForm.Location.Y = 10
+	$result = $openFileDialog.ShowDialog($positionForm)
 	
 	# in ISE you may have to alt-tab or minimize ISE to see dialog box  
 	if ($result -eq "OK")
@@ -794,8 +802,23 @@ function New-Spreadsheet
 			$range.Borders([Microsoft.Office.Interop.Excel.XlBordersIndex]::xlEdgeBottom).LineStyle = [Microsoft.Office.Interop.Excel.XlLineStyle]::xlDouble
 			
 			$sheet.Columns("A:$([char]($headers.Count + 64))").AutoFit() | Out-Null
-			if (Test-Path $path) { Remove-Item -Path $path }
-			$workbook.SaveAs($path)
+			
+			$template = [System.IO.Path]::GetFileNameWithoutExtension($path)
+			$folder = Split-Path -Parent $path
+			
+			for ($i = 1; $i -le 10; $i++)
+			{
+				try
+				{
+					$workbook.SaveAs($path)
+					break
+				}
+				catch
+				{
+					$filename = [System.IO.Path]::GetFileNameWithoutExtension($template) + "-$i"
+					$path = [System.IO.Path]::Combine($folder, $filename)
+				}
+			}
 			$excel.Workbooks.Close()
 			$excel.Quit()
 			[System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null
