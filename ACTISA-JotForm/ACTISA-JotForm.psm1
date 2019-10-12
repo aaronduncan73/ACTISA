@@ -49,7 +49,7 @@ function Get-SubmissionEntries
 	#   - using "Get-Content"
 	#
 	# Instead, we'll pass the output from Invoke-WebRequest directly to a temporary file
-	Write-Host "Get-SubmissionEntries-local(): url = '$url'"
+	Write-Host "Get-SubmissionEntries(): url = '$url'"
 	if ($url.Contains("?output="))
 	{
 		$format = $url.Split('=')[-1]
@@ -97,6 +97,7 @@ function Import-SpreadsheetFile
 		[string]$format
 	)
 	
+	Write-Host "Import-SpreadsheetFile(): filename = '$filename' format = '$format'"
 	$filepath = (Resolve-Path $filename).Path
 	
 	if ($format -eq 'xlsx')
@@ -145,6 +146,8 @@ function Import-XLSX
 		[string]$filename
 	)
 	
+	Write-Host "Import-XLSX(): filename = '$filename'"
+	
 	$filepath = (Resolve-Path $filename).Path
 	
 	# Create an excel object using the Com interface
@@ -162,9 +165,11 @@ function Import-XLSX
 	$numCols = $WorkSheet.UsedRange.Columns.Count
 	
 	$entries = @()
+	Write-Host -NoNewline 'Reading Spreadsheet rows.'
 	$headerRow = $WorkSheet.Rows.Item(1)
 	for ($r = 2; $r -le $numRows; $r++)
 	{
+		Write-Host -NoNewline '.'
 		$entryRow = [ordered]@{ }
 		$row = $WorkSheet.Rows.Item($r)
 		for ($c = 1; $c -le $numCols; $c++)
@@ -175,9 +180,10 @@ function Import-XLSX
 		}
 		$entries += [PSCustomObject]$entryRow
 	}
+	Write-Host "done"
 	
 	# close excel
-	$WorkBook.Close()
+	$WorkBook.Close($false)
 	$objExcel.Quit()
 	
 	# release the COM objects
@@ -186,6 +192,7 @@ function Import-XLSX
 	[System.Runtime.Interopservices.Marshal]::ReleaseComObject($objExcel)
 	[System.GC]::Collect()
 	
+	Write-Host "Returning entries"
 	return $entries
 }
 
