@@ -1,4 +1,22 @@
-﻿
+﻿<#
+	.SYNOPSIS
+		Processes JotForm submissions for Autumn Trophy
+	
+	.DESCRIPTION
+		Processes JotForm submissions for Autumn Trophy
+	
+	.EXAMPLE
+			PS C:\> .\process_autumn_trophy_submissions.ps1
+	
+	.NOTES
+		===========================================================================
+		Created on:   	22/08/2019 10:59 AM
+		Created by:   	Aaron Duncan
+		Organization: 	ACTISA
+		Filename:     	process_autumn_trophy_submissions.ps1
+		===========================================================================
+#>
+
 [Reflection.Assembly]::LoadWithPartialName("System.Web") | Out-Null
 [Reflection.Assembly]::LoadWithPartialName("Microsoft.Office.Interop.Word") | Out-Null
 
@@ -37,7 +55,7 @@ $abbreviations = @{
 # the '2019 Autumn Trophy' form on the ACTISA account
 $google_sheet_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSZ5Af0Ij-7gYNrAtneTLoJuNQSBkShvbmF9Sb2oGDNEHYcO-pD9KEFK5uge8ge_rStkh0Aw9JfJlbB/pub?output=tsv'
 
-$template_folder = 'C:\Users\aaron\Google Drive\Skating\Skating Templates';
+$template_folder = 'D:\Skating Templates';
 
 $Competition = "Autumn Trophy $(Get-Date -Format yyyy)";
 
