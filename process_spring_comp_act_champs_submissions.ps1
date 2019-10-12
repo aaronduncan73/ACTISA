@@ -375,20 +375,27 @@ function Publish-EntryMusicFiles
 				Write-Host "getting FS/FD music file"
 				# get the FS/FD music file
 				$music_url = $entry.'FS/FD Music File'
-				$music_file = [System.Web.HttpUtility]::UrlDecode($music_url.Split("/")[-1]);
-				$music_path = [System.IO.Path]::Combine($submission_folder, $music_file)
-				if ((Test-Path -Path $music_path -ErrorAction SilentlyContinue) -eq $false)
+				if (![String]::IsNullOrEmpty($music_url))
 				{
-					# music file is missing, so download it
-					Get-WebFile -url $music_url -destination $music_path
+					$music_file = [System.Web.HttpUtility]::UrlDecode($music_url.Split("/")[-1]);
+					$music_path = [System.IO.Path]::Combine($submission_folder, $music_file)
+					if ((Test-Path -Path $music_path -ErrorAction SilentlyContinue) -eq $false)
+					{
+						# music file is missing, so download it
+						Get-WebFile -url $music_url -destination $music_path
+					}
+					
+					$program = 'FS'
+					if ($category -match 'Dance')
+					{
+						$program = 'FD'
+					}
+					Publish-SkaterMusicFile -filename $music_path -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program $program
 				}
-				
-				$program = 'FS'
-				if ($category -match 'Dance')
+				else
 				{
-					$program = 'FD'
+					Write-Warning "Failed to retrieve name of FS/FD music file!"
 				}
-				Publish-SkaterMusicFile -filename $music_path -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program $program
 			}
 			
 			if ($category.StartsWith("Dance (Solo)") -or
@@ -398,20 +405,27 @@ function Publish-EntryMusicFiles
 				Write-Host "getting SP/RD music file"
 				# get SP/RD music file
 				$music_url = $entry.'SP/RD Music File'
-				$music_file = [System.Web.HttpUtility]::UrlDecode($music_url.Split("/")[-1]);
-				$music_path = [System.IO.Path]::Combine($submission_folder, $music_file)
-				if ((Test-Path -Path $music_path -ErrorAction SilentlyContinue) -eq $false)
+				if (![String]::IsNullOrEmpty($music_url))
 				{
-					# music file is missing, so download it
-					Get-WebFile -url $music_url -destination $music_path
+					$music_file = [System.Web.HttpUtility]::UrlDecode($music_url.Split("/")[-1]);
+					$music_path = [System.IO.Path]::Combine($submission_folder, $music_file)
+					if ((Test-Path -Path $music_path -ErrorAction SilentlyContinue) -eq $false)
+					{
+						# music file is missing, so download it
+						Get-WebFile -url $music_url -destination $music_path
+					}
+					
+					$program = 'SP'
+					if ($category -match 'Dance')
+					{
+						$program = 'RD'
+					}
+					Publish-SkaterMusicFile -filename $music_path -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program $program
 				}
-				
-				$program = 'SP'
-				if ($category -match 'Dance')
+				else
 				{
-					$program = 'RD'
+					Write-Warning "Failed to retrieve name of SP/RD music file!"
 				}
-				Publish-SkaterMusicFile -filename $music_path -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program $program
 			}
 			
 			if ($category.StartsWith("Dance") -and ($division -notmatch 'Junior|Senior'))
@@ -696,7 +710,7 @@ function New-CertificateList
 	if ($spring_results.Count -gt 0)
 	{
 		Write-Host " - generating $($spring_results.Count) Spring Comp Certificates."
-		$spring_results | Select-Object "Name", "Division" | export-csv -path $spring_comp_csv -Force -NoTypeInformation
+		$spring_results | Select-Object "Name", "Division" | Sort-Object -Property "Division" | Export-Csv -path $spring_comp_csv -Force -NoTypeInformation
 		if ($prompt)
 		{
 			$certificate_template_spring_comp = Find-Template -message "Select Spring Comp Certificate Template" -initial_dir $template_folder -default $certificate_template_spring_comp
@@ -715,7 +729,7 @@ function New-CertificateList
 	if ($champs_results.Count -gt 0)
 	{
 		Write-Host " - generating $($champs_results.Count) ACT Champs Certificates."
-		$champs_results | Select-Object "Name", "Division" | export-csv -path $act_champs_csv -Force -NoTypeInformation
+		$champs_results | Select-Object "Name", "Division" | Sort-Object -Property "Division" | Export-Csv -path $act_champs_csv -Force -NoTypeInformation
 		if ($prompt)
 		{
 			$certificate_template_act_champs = Find-Template -message "Select ACT Champs Certificate Template" -initial_dir $template_folder -default $certificate_template_act_champs
@@ -785,8 +799,6 @@ function New-SkatingSchedule
 		$divhash[$division] += $entry
 	}
 	
-	#$divhash.GetEnumerator() | Sort Name
-	
 	foreach ($div in $divhash.Keys | Sort-Object)
 	{
 		$category = $div.Split(";")[0].trim()
@@ -794,113 +806,101 @@ function New-SkatingSchedule
 		
 		if ($category.StartsWith("Aussie Skate (Half"))
 		{
-			$warmup = 3
-			$performance_time = 2
+			$fs_warmup = 3
+			$fs_performance_time = 2
 		}
 		elseif ($category.StartsWith("Aussie Skate (Full"))
 		{
-			$warmup = 3
-			$performance_time = 3
+			$fs_warmup = 3
+			$fs_performance_time = 3
 		}
 		elseif ($category -eq 'Adult')
 		{
-			$warmup = 4
-			$performance_time = 4
+			$fs_warmup = 4
+			$fs_performance_time = 4
 			$division = "Adult $division"
 		}
 		elseif ($category -eq 'Singles' -and $division -eq 'Preliminary')
 		{
-			$warmup = 4
-			$performance_time = 3
+			$fs_warmup = 4
+			$fs_performance_time = 3
 		}
 		elseif ($category -eq 'Singles' -and $division -eq 'Elementary')
 		{
-			$warmup = 4
-			$performance_time = 4
+			$fs_warmup = 4
+			$fs_performance_time = 4
 		}
 		elseif ($category -eq 'Singles' -and $division -eq 'Basic Novice')
 		{
-			$warmup = 4
-			$performance_time = 4
+			$fs_warmup = 4
+			$fs_performance_time = 4
+		}
+		elseif ($category -eq 'Singles' -and $division -eq 'Advanced Novice')
+		{
+			$fs_warmup = 6
+			$fs_performance_time = 6
+			$sp_warmup = 4
+			$sp_performance_time = 5
+		}
+		elseif ($category -eq 'Singles' -and $division -match 'Junior|Senior')
+		{
+			$fs_warmup = 6
+			$fs_performance_time = 6
+			$sp_warmup = 6
+			$sp_performance_time = 5
 		}
 		else
 		{
-			$warmup = 5
-			$performance_time = 4
+			$fs_warmup = 5
+			$fs_performance_time = 4
 		}
 		
 		#Write-Host "Category: $category, Division: $division"
-		Add-Content -Path $schedule1 -Value "Category: $category, Division: $division"
+		Add-Content -Path $schedule1 -Value ",Category: $category, Division: $division"
 		
 		$count = $divhash.Item($div).Count
 		$num_warmup_groups = [Math]::Ceiling($count/$MAX_WARMUP_GROUP_SIZE)
-		Add-Content -path $schedule1 -Value "Num Entries: $count"
-		"Warmup Time: ($num_warmup_groups x $warmup) = {0} minutes" -f ($num_warmup_groups * $warmup) | Add-Content -Path $schedule1
-		"Performance time = ($count x $performance_time) = {0} minutes " -f ($count * $performance_time) | Add-Content -Path $schedule1
+		Add-Content -path $schedule1 -Value ",Num Entries: $count"
+		",Warmup Time: ($num_warmup_groups x $fs_warmup) = {0} minutes" -f ($num_warmup_groups * $fs_warmup) | Add-Content -Path $schedule1
+		",Performance time = ($count x $fs_performance_time) = {0} minutes " -f ($count * $fs_performance_time) | Add-Content -Path $schedule1
 		
-		if ($category -match 'Couple')
-		{
-			Add-Content -path $schedule1 -Value "Last Name, First Name, Last Name, First Name, State, Coach Name, Other Coach Names, Music Title"
-		}
-		else
-		{
-			Add-Content -path $schedule1 -Value "Last Name, First Name, State, Coach Name, Other Coach Names, Music Title, Gender"
-		}
+		Add-Content -path $schedule1 -Value ",Last Name, First Name, State, Coach Name, Other Coach Names"
 		
 		$divhash.Item($div) | ForEach-Object {
-			$num_segments = $_.'Number of Segments in Music'
-			if ($_.'Music Details (Segment 1)' -match 'Title: (.*) Artist:')
-			{
-				$music_title = $Matches[1]
-			}
-			else
-			{
-				$music_title = '<NOT PROVIDED>'
-			}
-			
-			$coach_name = $_.'Coach Name:'
-			
+			",{0}, {1}, {2}, {3}, {4}" -f $_.'Last Name', $_.'First Name', $_.'Skater 1 State/Territory:', $_.'Primary Coach Name:', $_.'Other Coach Names:' | Add-Content -path $schedule1
 			if ($category -match 'Couple')
 			{
-				"`"{0}`", `"{1}`", `"{2}`", `"{3}`", `"{4}`", `"{5}`", `"{6}`", `"{7}`"" -f $_.'Last Name', $_.'First Name', $_.'Skater 2 Name: (Last Name)', $_.'Skater 2 Name: (First Name)', $_.'Skater 1 State/Territory:', $_.'Coach Name:', $_.'Other Coach Names:', $music_title.Trim() | Add-Content -path $schedule1
-			}
-			else
-			{
-				"{0}, {1}, {2}, {3}, `"{4}`", {5}, {6}" -f $_.'Last Name', $_.'First Name', $_.'Skater 1 State/Territory:', $_.'Primary Coach Name:', $_.'Other Coach Names:', $music_title.Trim(), $_.'Skater 1 Gender:' | Add-Content -path $schedule1
+				",{0}, {1}, {2}, {3}, {4}" -f $_.'Skater 2 Name: (Last Name)', $_.'Skater 2 Name: (First Name)', $_.'Skater 1 State/Territory:', $_.'Primary Coach Name:', $_.'Other Coach Names:' | Add-Content -path $schedule1
 			}
 		}
 		Add-Content -Path $schedule1 -Value ""
 		
-		if ($category -match 'Singles' -and $division -match 'Advanced Novice|Junior|Senior')
+		if ($division -match 'Advanced Novice|Junior|Senior')
 		{
 			# need to generate additional schedule for short programs
-			Add-Content -Path $schedule2 -Value "Category: $category, Division: $division"
+			if ($category -match 'Couple')
+			{
+				$program = 'Rhythm Dance'
+			}
+			else
+			{
+				$program = 'Short Program'
+			}
+			Add-Content -Path $schedule2 -Value ",Category: $category, Division: $division ($program)"
 			$count = $divhash.Item($div).Count
 			$num_warmup_groups = [Math]::Ceiling($count/$MAX_WARMUP_GROUP_SIZE)
-			Add-Content -path $schedule2 -Value "Num Entries: $count"
-			"Warmup Time: ($num_warmup_groups x $warmup) = {0} minutes" -f ($num_warmup_groups * $warmup) | Add-Content -Path $schedule2
-			"Performance time = ($count x $performance_time) = {0} minutes " -f ($count * $performance_time) | Add-Content -Path $schedule2
+			Add-Content -path $schedule2 -Value ",Num Entries: $count"
+			",Warmup Time: ($num_warmup_groups x $sp_warmup) = {0} minutes" -f ($num_warmup_groups * $sp_warmup) | Add-Content -Path $schedule2
+			",Performance time = ($count x $sp_performance_time) = {0} minutes " -f ($count * $sp_performance_time) | Add-Content -Path $schedule2
 			
-			Add-Content -path $schedule2 -Value "Last Name, First Name, State, Coach Name, Other Coach Names, Music Title, Gender"
+			Add-Content -path $schedule2 -Value ",Last Name, First Name, State, Coach Name, Other Coach Names"
 			
 			$divhash.Item($div) | ForEach-Object {
-				$num_segments = $_.'Number of Segments in Music (1-4)'
-				if ($_.'SP Music Details (Segment 1)' -match 'Title: (.*) Artist:')
+				",{0}, {1}, {2}, {3}, {4}" -f $_.'Last Name', $_.'First Name', $_.'Skater 1 State/Territory:', $_.'Primary Coach Name:', $_.'Other Coach Names:' | Add-Content -path $schedule1
+				if ($category -match 'Couple')
 				{
-					$music_title = $Matches[1]
+					",{0}, {1}, {2}, {3}, {4}" -f $_.'Skater 2 Name: (Last Name)', $_.'Skater 2 Name: (First Name)', $_.'Skater 1 State/Territory:', $_.'Primary Coach Name:', $_.'Other Coach Names:' | Add-Content -path $schedule1
 				}
-				else
-				{
-					$music_title = '<NOT PROVIDED>'
-				}
-				
-				$coach_name = $_.'Primary Coach Name:'
-				if ($coach_name -eq 'Other')
-				{
-					$coach_name = $_.'Primary Coach Name:2'
-				}
-				$_.Keys
-				"{0}, {1}, {2}, {3}, `"{4}`", {5}, {6}" -f $_.'Last Name', $_.'First Name', $_.'Skater 1 State/Territory:', $coach_name, $_.'Other Coach Names:', $music_title.Trim(), $_.'Skater 1 Gender:' | Add-Content -path $schedule2
 			}
 			Add-Content -Path $schedule2 -Value ""
 		}
@@ -1140,14 +1140,12 @@ function New-EngravingSchedule
 	$Row.Cells(1).Range.Text = "$Competition engraving schedule - TROPHY"
 	$Row.Cells(1).Range.Bold = $true
 	
-	#$Row.Cells(1).Range.paragraphFormat.Alignment = [Microsoft.Office.Interop.Word.WdParagraphAlignment]::wdAlignParagraphCenter
-	
 	foreach ($div in $divhash.Keys | Sort-Object)
 	{
 		$category = $div.Split(";")[0].trim()
 		$division = $div.Split(";")[1].trim()
 		
-		if ($category -match "Adult | Dance")
+		if ($category -match "Adult|Dance")
 		{
 			#$division = "$category $division"
 		}
@@ -1188,7 +1186,7 @@ function New-EngravingSchedule
 	$MedalSelection.paragraphFormat.Alignment = [Microsoft.Office.Interop.Word.WdParagraphAlignment]::wdAlignParagraphCenter
 	
 	# Save the documents
-	$MedalDoc.SaveAs($medalPath, [Microsoft.Office.Interop.Word.WdSaveFormat]::wdFormatDocumentDefault)
+	$MedalDoc.SaveAs($medalPath,   [Microsoft.Office.Interop.Word.WdSaveFormat]::wdFormatDocumentDefault)
 	$TrophyDoc.SaveAs($trophyPath, [Microsoft.Office.Interop.Word.WdSaveFormat]::wdFormatDocumentDefault)
 	$MedalDoc.close()
 	$TrophyDoc.close()
@@ -1697,7 +1695,6 @@ function New-ProofOfAgeAndMemberships
 		$name = $entry.'Skater 1 Name'
 		if (-not $list.ContainsKey($name))
 		{
-			Write-Host "Name1: '$name'"
 			$list.Add($name,
 				@(
 					$name,
@@ -1716,7 +1713,6 @@ function New-ProofOfAgeAndMemberships
 		{
 			if (-not $list.ContainsKey($name))
 			{
-				Write-Host "Name2: '$name'"
 				$list.Add($name,
 					@(
 						$name,
