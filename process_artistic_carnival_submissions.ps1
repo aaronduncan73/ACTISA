@@ -1,22 +1,26 @@
 ﻿<#
 	.SYNOPSIS
-		Processes Jotform for ACT Championships / Spring Competition
+		Processes Jotform for Artistic Carnival Competition
 	
 	.DESCRIPTION
-		Processes Jotform for ACT Championships / Spring Competition.
+		Processes Jotform for Artistic Carnival Competition.
 	
 	.EXAMPLE
 		PS C:\> .\process_artistic_carnival_submissions.ps1
 	
 	.NOTES
 		===========================================================================
-		Created with: 	SAPIEN Technologies, Inc., PowerShell Studio 2018 v5.5.148
 		Created on:   	22/08/2019 10:59 AM
 		Created by:   	Aaron Duncan
 		Organization: 	ACTISA
 		Filename:     	process_artistic_carnival_submissions.ps1
 		===========================================================================
 #>
+param
+(
+	[bool]
+	$prompt = $true
+)
 
 [Reflection.Assembly]::LoadWithPartialName("System.Web") | Out-Null
 [Reflection.Assembly]::LoadWithPartialName("Microsoft.Office.Interop.Word") | Out-Null
@@ -35,12 +39,12 @@ Import-Module ACTISA-JotForm
 $MAX_WARMUP_GROUP_SIZE = 8
 
 $abbreviations = @{
-    "Free Skate"      = "FS";
-    "Aussie Skate"    = "AS";
-    "Free Dance"      = "FD";
-    "Short Program"   = "SP";
-    "Free Program"    = "FP";
-    "Advanced Novice" = "AdvNov";
+	"Free Skate"	  = "FS";
+	"Aussie Skate"    = "AS";
+	"Free Dance"	  = "FD";
+	"Short Program"   = "SP";
+	"Free Program"    = "FP";
+	"Advanced Novice" = "AdvNov";
 }
 
 
@@ -57,7 +61,7 @@ $abbreviations = @{
 # the '2019 Carnival of Artistic Skating and TOI' form on the ACTISA account
 $google_sheet_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRS41PTQyGeHZJhPpZmGvlViCWgTu8dHsgvIOWo7lVa3WcOUfx4gK91uOi5g_K5e7_fdJ8Sl9PdYIuN/pub?output=tsv'
 
-$template_folder = 'C:\Users\aaron\Google Drive\Skating\Skating Templates';
+$template_folder = 'D:\Skating Templates';
 
 $Competition = "Carnival of Artistic Skating and TOI $(Get-Date -Format yyyy)"
 
@@ -67,7 +71,7 @@ $comp_folder = "D:\ACTISA_COMP - $Competition";
 
 if (!(Test-Path -Path $comp_folder))
 {
-    New-Item -ItemType Directory -Force -Path $comp_folder | Out-Null
+	New-Item -ItemType Directory -Force -Path $comp_folder | Out-Null
 }
 
 #================================================================================
@@ -376,8 +380,14 @@ function New-CertificateList
 		New-Item $folder -Type Directory | Out-Null
 	}
 	
-	$template = Find-Template -message "Select Certificate Template" -initial_dir $template_folder -default $certificate_template
-	
+	if ($prompt)
+	{
+		$template = Find-Template -message "Select Certificate Template" -initial_dir $template_folder -default $certificate_template
+	}
+	else
+	{
+		$template = Resolve-Path -Path "${template_folder}/${certificate_template}"
+	}
 	$input_csv = [System.IO.Path]::Combine($folder, "certificate_inputs.csv")
 	
 	Write-Host "Input CSV file: $input_csv"
@@ -411,8 +421,8 @@ function New-CertificateList
 				Write-Host "Name: $CapitalisedName"
 				
 				$results += New-Object -TypeName PSObject -Property @{
-					"Name"	    = $CapitalisedName
-					"Division"  = $division
+					"Name"	   = $CapitalisedName
+					"Division" = $division
 				}
 			}
 		}
@@ -433,8 +443,8 @@ function New-CertificateList
 				Write-Host "Name: $CapitalisedName"
 				
 				$results += New-Object -TypeName PSObject -Property @{
-					"Name"	    = $CapitalisedName
-					"Division"  = $division
+					"Name"	   = $CapitalisedName
+					"Division" = $division
 				}
 			}
 		}
@@ -442,7 +452,7 @@ function New-CertificateList
 	
 	Write-Host "Number of entries = $($entries.Count)"
 	
-	$results | Select-Object "Name", "Division" | export-csv -path $input_csv -Force -NoTypeInformation
+	$results | Select-Object "Name", "Division" | Sort-Object -Property "Division", "Name" | Export-Csv -path $input_csv -Force -NoTypeInformation
 	
 	Invoke-MailMerge -template $template -datasource $input_csv -destination $folder
 }
@@ -683,8 +693,8 @@ function New-DivisionCountsSpreadsheet
 	}
 	
 	$rows += (@{
-			border  = $false;
-			values  = @('', '', 'TOTAL:', $trophy_count.bronze, $trophy_count.silver, $trophy_count.gold)
+			border = $false;
+			values = @('', '', 'TOTAL:', $trophy_count.bronze, $trophy_count.silver, $trophy_count.gold)
 		})
 	
 	$headers = @('Category', 'Division', '# Entries', 'Bronze Trophy', 'Silver Trophy', 'Gold Trophy')
@@ -1026,8 +1036,8 @@ function New-VolunteerSpreadsheet
 			}
 			
 			$rows += (@{
-					'border'  = $true;
-					'values'  = @($entry.'Skater 1 Name',
+					'border' = $true;
+					'values' = @($entry.'Skater 1 Name',
 						$division,
 						$entry.'Volunteer Name',
 						$entry.'Volunteer E-mail',
@@ -1066,8 +1076,10 @@ function New-PaymentSpreadsheet
 	param
 	(
 		$entries,
-		[string]$folder,
-		[string]$format = 'csv'
+		[string]
+		$folder,
+		[string]
+		$format = 'csv'
 	)
 	
 	Write-Host "Generating Payment Spreadsheet ($format)"
@@ -1092,8 +1104,8 @@ function New-PaymentSpreadsheet
 		
 		$parentName = $entry.'Parent/Guardian Name: (First Name)' + ' ' + $entry.'Parent/Guardian Name: (Last Name)'
 		$rows += (@{
-				'border'  = $true;
-				'values'  = @(
+				'border' = $true;
+				'values' = @(
 					$entry.'Skater 1 Name',
 					$division,
 					$parentName,
@@ -1133,8 +1145,10 @@ function New-CoachSkatersList
 	param
 	(
 		$entries,
-		[string]$folder,
-		[string]$format = 'csv'
+		[string]
+		$folder,
+		[string]
+		$format = 'csv'
 	)
 	
 	Write-Host "Generating Coach/Skaters List ($format)"
@@ -1223,8 +1237,8 @@ function New-PhotoPermissionList
 		$category = $catdiv[0].trim()
 		$division = $catdiv[1].trim()
 		$rows += (@{
-				'border'  = $true;
-				'values'  = @($category,
+				'border' = $true;
+				'values' = @($category,
 					$division,
 					$entry.'Skater 1 Name',
 					$entry.'Skater 2 Name',
@@ -1235,7 +1249,29 @@ function New-PhotoPermissionList
 	New-Spreadsheet -name "Photo Permissions" -path $outfile -headers $headers -rows $rows -format $format
 }
 
-function New-ProofOfAgeAndMemberships
+<#
+	.SYNOPSIS
+		Generate Skater Membership/POA Spreadsheet
+	
+	.DESCRIPTION
+		Generate a list of all skaters, with their state/coach/membership number/POA
+	
+	.PARAMETER entries
+		A description of the entries parameter.
+	
+	.PARAMETER folder
+		A description of the folder parameter.
+	
+	.PARAMETER format
+		A description of the format parameter.
+	
+	.EXAMPLE
+				PS C:\> New-MembershipAndPOASpreadsheet
+	
+	.NOTES
+		Additional information about the function.
+#>
+function New-MembershipAndPOASpreadsheet
 {
 	[CmdletBinding()]
 	param
@@ -1315,39 +1351,63 @@ function New-ProofOfAgeAndMemberships
 #------------------------          MAIN CONTROL          ------------------------
 #================================================================================
 
-# prompt the user to specify location
-$comp_folder     = Find-Folders -title "Select the Competition folder" -default $comp_folder
-$template_folder = Find-Folders -title "Select the MailMerge Template folder" -default $template_folder
+if ($prompt)
+{
+	# prompt the user to specify location
+	$comp_folder = Find-Folders -title "Select the Competition folder" -default $comp_folder
+	$template_folder = Find-Folders -title "Select the MailMerge Template folder" -default $template_folder
+}
+else
+{
+	if (!(Test-Path -Path $comp_folder -ErrorAction SilentlyContinue))
+	{
+		New-Item -ItemType Directory -Force -Path $comp_folder | Out-Null
+	}
+	if (!(Test-Path -Path $template_folder -ErrorAction SilentlyContinue))
+	{
+		New-Item -ItemType Directory -Force -Path $template_folder | Out-Null
+	}
+}
 
 Push-Location $comp_folder
 
-foreach ($f in ('Submissions','Music','Certificates','Schedule'))
+foreach ($f in ('Submissions', 'Music', 'Certificates', 'Schedule'))
 {
-    if ((Test-Path $f -ErrorAction SilentlyContinue) -eq $false)
-    {
-        New-Item $f -ItemType Directory | Out-Null
-    }
+	if ((Test-Path $f -ErrorAction SilentlyContinue) -eq $false)
+	{
+		New-Item $f -ItemType Directory | Out-Null
+	}
 }
 
 Pop-Location
 
 $submissionFullPath = [System.IO.Path]::Combine($comp_folder, "Submissions")
-$music_folder       = [System.IO.Path]::Combine($comp_folder, "Music")
+$music_folder = [System.IO.Path]::Combine($comp_folder, "Music")
 $certificate_folder = [System.IO.Path]::Combine($comp_folder, "Certificates")
-$schedule_folder    = [System.IO.Path]::Combine($comp_folder, "Schedule")
+$schedule_folder = [System.IO.Path]::Combine($comp_folder, "Schedule")
 
 Write-Host "Competition Folder: $comp_folder"
 write-host "Music Folder: $music_folder"
 
-$entries = Get-SubmissionEntries -url $google_sheet_url
+$entries = @()
+foreach ($entry in (Get-SubmissionEntries -url $google_sheet_url))
+{
+	# strip out entries with no submission ID
+	if (-not [String]::IsNullOrWhiteSpace($entry.'Submission ID'))
+	{
+		$entries += $entry
+	}
+}
 
 foreach ($entry in $entries)
 {
 	Publish-EntryMusicFiles -entry $entry -submissionFullPath $submissionFullPath -music_folder $music_folder
 }
 
-New-CertificateList            -entries $entries -folder $certificate_folder 
-New-SkatingSchedule            -entries $entries -folder $schedule_folder
+Write-Host "Number of entries = $($entries.Count)`n" -ForegroundColor Yellow
+
+New-CertificateList -entries $entries -folder $certificate_folder
+New-SkatingSchedule -entries $entries -folder $schedule_folder
 New-DivisionCountsSpreadsheet -entries $entries -folder $comp_folder -format 'xlsx'
 New-RegistrationList -entries $entries -folder $comp_folder -format 'xlsx'
 New-EngravingSchedule -entries $entries -folder $comp_folder
@@ -1357,6 +1417,6 @@ New-SkaterEmailList -entries $entries -folder $comp_folder -format 'xlsx'
 New-CoachEmailList -entries $entries -folder $comp_folder -format 'xlsx'
 New-CoachSkatersList -entries $entries -folder $comp_folder -format 'xlsx'
 New-PhotoPermissionList -entries $entries -folder $comp_folder -format 'xlsx'
-New-ProofOfAgeAndMemberships -entries $entries -folder $comp_folder -format 'xlsx'
+New-MembershipAndPOASpreadsheet -entries $entries -folder $comp_folder -format 'xlsx'
 
 #Read-Host -Prompt "Press Enter to exit"
