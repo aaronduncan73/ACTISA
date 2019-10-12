@@ -55,7 +55,7 @@ $abbreviations = @{
 #     - copy link
 
 # the '2019 National Federation Challenge Registration' form on the ACTISA account
-$google_sheet_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQuVTDAdKSd79QusmGXZ5DQVVEDdpD_czH2eY8vSlYmPdNkXYTyQY65yoPRAvFoiBudP8w9qiiHuXz3/pub?output=tsv'
+$google_sheet_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTBOV5Kc5Xye9YV26PeER1xWCwku5BoSaqTuDb2ZTBQOaCH1UEb9_J6v04Jl3x1FnCz1qLwEOV9NdGn/pub?output=xlsx'
 $template_folder = 'C:\Users\aaron\Google Drive\Skating\Skating Templates';
 
 $Competition = "NFC $(Get-Date -Format yyyy)";
@@ -360,21 +360,28 @@ function Publish-EntryMusicFiles
 			{
 				Write-Host "getting FS/FD music file"
 				# get the FS/FD music file
-				$music_url = $entry.'FS/FD Music File'
-				$music_file = [System.Web.HttpUtility]::UrlDecode($music_url.Split("/")[-1]);
-				$music_path = [System.IO.Path]::Combine($submission_folder, $music_file)
-				if ((Test-Path -Path $music_path -ErrorAction SilentlyContinue) -eq $false)
+				$music_url = $entry.'FS/FD Music File:'
+				if (![String]::IsNullOrEmpty($music_url))
 				{
-					# music file is missing, so download it
-					Get-WebFile -url $music_url -destination $music_path
+					$music_file = [System.Web.HttpUtility]::UrlDecode($music_url.Split("/")[-1]);
+					$music_path = [System.IO.Path]::Combine($submission_folder, $music_file)
+					if ((Test-Path -Path $music_path -ErrorAction SilentlyContinue) -eq $false)
+					{
+						# music file is missing, so download it
+						Get-WebFile -url $music_url -destination $music_path
+					}
+					
+					$program = 'FS'
+					if ($category -match 'Dance')
+					{
+						$program = 'FD'
+					}
+					Publish-SkaterMusicFile -filename $music_path -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program $program
 				}
-				
-				$program = 'FS'
-				if ($category -match 'Dance')
+				else
 				{
-					$program = 'FD'
+					Write-Warning "Failed to retrieve name of FS/FD music file!"
 				}
-				Publish-SkaterMusicFile -filename $music_path -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program $program
 			}
 			
 			if ($category.StartsWith("Dance (Solo)") -or
@@ -384,20 +391,27 @@ function Publish-EntryMusicFiles
 				Write-Host "getting SP/RD music file"
 				# get SP/RD music file
 				$music_url = $entry.'SP/RD Music File'
-				$music_file = [System.Web.HttpUtility]::UrlDecode($music_url.Split("/")[-1]);
-				$music_path = [System.IO.Path]::Combine($submission_folder, $music_file)
-				if ((Test-Path -Path $music_path -ErrorAction SilentlyContinue) -eq $false)
+				if (![String]::IsNullOrEmpty($music_url))
 				{
-					# music file is missing, so download it
-					Get-WebFile -url $music_url -destination $music_path
+					$music_file = [System.Web.HttpUtility]::UrlDecode($music_url.Split("/")[-1]);
+					$music_path = [System.IO.Path]::Combine($submission_folder, $music_file)
+					if ((Test-Path -Path $music_path -ErrorAction SilentlyContinue) -eq $false)
+					{
+						# music file is missing, so download it
+						Get-WebFile -url $music_url -destination $music_path
+					}
+					
+					$program = 'SP'
+					if ($category -match 'Dance')
+					{
+						$program = 'RD'
+					}
+					Publish-SkaterMusicFile -filename $music_path -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program $program
 				}
-				
-				$program = 'SP'
-				if ($category -match 'Dance')
+				else
 				{
-					$program = 'RD'
+					Write-Warning "Failed to retrieve name of SP/RD music file!"
 				}
-				Publish-SkaterMusicFile -filename $music_path -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program $program
 			}
 			
 			if ($category.StartsWith("Dance") -and ($division -notmatch 'Junior|Senior'))
@@ -719,15 +733,35 @@ function New-CertificateList
 	}
 }
 
-#--------------------------------------------------------------------------------
-# FUNCTION:
-#  generate_skating_schedule
-#
-# DESCRIPTION:
-#
-#--------------------------------------------------------------------------------
-function generate_skating_schedule($entries, $folder)
+<#
+	.SYNOPSIS
+		Generate Skating Schedule Templates
+	
+	.DESCRIPTION
+		Generates initial spreadsheets to be used to construct Skating Schedules.
+		Two separate spreadsheets are constructed.
+		All performances will go in the first spreadsheet, unless there is a requirement for two performances to occur on separate days; in this case, the second performance will be placed in the second spreadsheet.
+	
+	.PARAMETER entries
+		A description of the entries parameter.
+	
+	.PARAMETER folder
+		A description of the folder parameter.
+	
+	.EXAMPLE
+				PS C:\> New-SkatingSchedule
+	
+	.NOTES
+		Additional information about the function.
+#>
+function New-SkatingSchedule
 {
+	param
+	(
+		$entries,
+		$folder
+	)
+	
 	Write-Host "Generating Skating Schedule"
 	
 	if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
@@ -754,7 +788,7 @@ function generate_skating_schedule($entries, $folder)
 	
 	#$divhash.GetEnumerator() | Sort Name
 	
-	foreach ($div in $divhash.Keys | Sort)
+	foreach ($div in $divhash.Keys | Sort-Object)
 	{
 		$category = $div.Split(";")[0].trim()
 		$division = $div.Split(";")[1].trim()
@@ -817,7 +851,6 @@ function generate_skating_schedule($entries, $folder)
 		}
 		Add-Content -Path $schedule1 -Value ""
 	}
-	
 }
 
 <#
@@ -1717,7 +1750,7 @@ Write-Host "Number of entries = $($entries.Count)`n" -ForegroundColor Yellow
 
 New-PPCForms -entries $entries -folder $ppc_folder
 New-CertificateList -entries $entries -folder $certificate_folder
-generate_skating_schedule -entries $entries -folder $schedule_folder
+New-SkatingSchedule -entries $entries -folder $schedule_folder
 New-DivisionCountsSpreadsheet -entries $entries -folder $comp_folder -format 'xlsx'
 New-EngravingSchedule -entries $entries -folder $comp_folder
 New-RegistrationList -entries $entries -folder $comp_folder -format 'xlsx'
