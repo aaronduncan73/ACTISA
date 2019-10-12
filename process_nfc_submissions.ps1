@@ -1,10 +1,9 @@
-﻿
-<#
+﻿<#
 	.SYNOPSIS
-		Processes Jotform for National Federation Challenge (NFC)
+		Processes Jotform submissions for National Federation Challenge (NFC) Competition
 	
 	.DESCRIPTION
-		Processes Jotform for National Federation Challenge (NFC)
+		Processes Jotform submissions for National Federation Challenge (NFC) Competition
 	
 	.PARAMETER prompt
 		if the user should be prompted for folder/file locations
@@ -15,7 +14,12 @@
 			process_nfc_submissions.ps1 -prompt $false
 	
 	.NOTES
-		Additional information about the file.
+		===========================================================================
+		Created on:   	22/08/2019 10:59 AM
+		Created by:   	Aaron Duncan
+		Organization: 	ACTISA
+		Filename:     	process_nfc_submissions.ps1
+		===========================================================================
 #>
 param
 (
