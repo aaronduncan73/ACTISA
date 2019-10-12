@@ -1,4 +1,32 @@
-﻿
+﻿<#
+	.SYNOPSIS
+		Processes Jotform submissions for Gwen Peterson Theatre On Ice (GPTOI) Competition
+	
+	.DESCRIPTION
+		Processes Jotform submissions for Gwen Peterson Theatre On Ice (GPTOI) Competition
+	
+	.PARAMETER prompt
+		if the user should be prompted for folder/file locations
+	
+	.EXAMPLE
+			process_gptoi_submissions.ps1
+			process_gptoi_submissions.ps1 -prompt $true
+			process_gptoi_submissions.ps1 -prompt $false
+	
+	.NOTES
+		===========================================================================
+		Created on:   	22/08/2019 10:59 AM
+		Created by:   	Aaron Duncan
+		Organization: 	ACTISA
+		Filename:     	process_gptoi_submissions.ps1
+		===========================================================================
+#>
+param
+(
+	[bool]
+	$prompt = $true
+)
+
 [Reflection.Assembly]::LoadWithPartialName("System.Web") | Out-Null
 [Reflection.Assembly]::LoadWithPartialName("Microsoft.Office.Interop.Word") | Out-Null
 
@@ -1297,9 +1325,23 @@ function New-TeamMemberSpreadsheet
 #------------------------          MAIN CONTROL          ------------------------
 #================================================================================
 
-# prompt the user to specify location
-$comp_folder = Find-Folders -title "Select the Competition folder (default=$comp_folder)" -default $comp_folder
-$template_folder = Find-Folders -title "Select the MailMerge Template folder (default=$template_folder)" -default $template_folder
+if ($prompt)
+{
+	# prompt the user to specify location
+	$comp_folder = Find-Folders -title "Select the Competition folder (default = $comp_folder)" -default $comp_folder
+	$template_folder = Find-Folders -title "Select the MailMerge Template folder (default = $template_folder)" -default $template_folder
+}
+else
+{
+	if (!(Test-Path -Path $comp_folder -ErrorAction SilentlyContinue))
+	{
+		New-Item -ItemType Directory -Force -Path $comp_folder | Out-Null
+	}
+	if (!(Test-Path -Path $template_folder -ErrorAction SilentlyContinue))
+	{
+		New-Item -ItemType Directory -Force -Path $template_folder | Out-Null
+	}
+}
 
 Push-Location $comp_folder
 
@@ -1321,7 +1363,15 @@ $schedule_folder = [System.IO.Path]::Combine($comp_folder, "Schedule")
 Write-Host "Competition Folder: $comp_folder"
 write-host "Music Folder: $music_folder"
 
-$entries = &Get-SubmissionEntries
+$entries = @()
+foreach ($entry in (Get-SubmissionEntries -url $google_sheet_url))
+{
+	# strip out entries with no submission ID
+	if (-not [String]::IsNullOrWhiteSpace($entry.'Submission ID'))
+	{
+		$entries += $entry
+	}
+}
 
 foreach ($entry in $entries)
 {
@@ -1342,5 +1392,6 @@ New-TeamDescriptionSpreadsheet -entries $entries -folder $comp_folder -format 'x
 New-TeamEmailList -entries $entries -folder $comp_folder -format 'xlsx'
 New-CoachSkatersList -entries $entries -folder $comp_folder -format 'xlsx'
 New-PhotoPermissionList -entries $entries -folder $comp_folder -format 'xlsx'
+
 #Read-Host -Prompt "Press Enter to exit
-}
+
