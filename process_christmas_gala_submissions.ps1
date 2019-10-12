@@ -23,11 +23,29 @@ $abbreviations = @{
     "Advanced Novice" = "AdvNov";
 }
 
-# 
+#
+# To link to the google spreadsheet:
+#     - open sheet
+#     - select "File > Publish to the web ..." menuitem
+#     - leave the 1st dropdown as "Entire Document"
+#     - change the 2nd dropdown to "Tab-separated values (.tsv)
+#     - click Publish
+#     - Click OK
+#     - copy link
+
+# the '2019 Christmas Gala' form on the ACTISA account
 $google_sheet_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRPrJY_zj6i-Ir-qfZARYjloDENPnYha6kwFjeJdkOEXZ12w6tD9kP3P46pQYi59Hm7ANjg_e7WdpPg/pub?output=tsv'
 
+$template_folder = 'D:\Skating Templates';
 
-$template_folder = 'C:\Users\aaron\Google Drive\Skating Templates';
+$Competition = "Christmas Gala $(Get-Date -Format yyyy)";
+
+$comp_folder = "D:\ACTISA_COMP - $($Competition)"
+
+if (!(Test-Path -Path $comp_folder))
+{
+	New-Item -ItemType Directory -Force -Path $comp_folder | Out-Null
+}
 
 #================================================================================
 #-------------------------          FUNCTIONS          --------------------------
@@ -421,21 +439,28 @@ function New-PaymentSpreadsheet
 #================================================================================
 
 # prompt the user to specify location
-$comp_folder     = Find-Folders -title "Select the Competition folder" -default "D:\ACTISA_GALA"
-$template_folder = Find-Folders -title "Select the MailMerge Template folder" -default $template_folder
+$comp_folder = Find-Folders -title "Select the Competition folder (default=$comp_folder)" -default $comp_folder
+$template_folder = Find-Folders -title "Select the MailMerge Template folder (default=$template_folder)" -default $template_folder
+
+Push-Location $comp_folder
+
+foreach ($f in ('Submissions', 'Music', 'Certificates', 'Schedule'))
+{
+	if ((Test-Path $f -ErrorAction SilentlyContinue) -eq $false)
+	{
+		New-Item $f -ItemType Directory | Out-Null
+	}
+}
+
+Pop-Location
 
 $submissionFullPath = [System.IO.Path]::Combine($comp_folder, "Submissions")
 $music_folder       = [System.IO.Path]::Combine($comp_folder, "Music")
 $certificate_folder = [System.IO.Path]::Combine($comp_folder, "Certificates")
 $schedule_folder    = [System.IO.Path]::Combine($comp_folder, "Schedule")
 
-
 Write-Host "Competition Folder: $comp_folder"
-
-if ((Test-Path $music_folder -ErrorAction SilentlyContinue) -eq $false)
-{
-    New-Item $music_folder -Type Directory | Out-Null
-}
+write-host "Music Folder: $music_folder"
 
 $entries = Get-SubmissionEntries -url $google_sheet_url
 
@@ -444,11 +469,13 @@ foreach ($entry in $entries)
     Publish-EntryMusicFiles -entry $entry -submissionFullPath $submissionFullPath -music_folder $music_folder
 }
 
-#generate_ppc_forms             -entries $entries -folder $ppc_folder
+Write-Host "Number of entries = $($entries.Count)`n" -ForegroundColor Yellow
+
 #generate_certificates          -entries $entries -folder $certificate_folder 
 #generate_skating_schedule      -entries $entries -folder $schedule_folder
 #generate_division_counts       -entries $entries -folder $eventFolder
 New-RegistrationList  -entries $entries -folder $eventFolder -format 'xlsx'
 New-VolunteerSpreadsheet -entries $entries -folder $eventFolder -format 'xlsx'
 New-PaymentSpreadsheet -entries $entries -folder $eventFolder -format 'xlsx'
+
 #Read-Host -Prompt "Press Enter to exit"
