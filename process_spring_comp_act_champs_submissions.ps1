@@ -677,6 +677,8 @@ function New-CertificateList
 		{
 			$spring_results += New-Object -TypeName PSObject -Property @{
 				"Name"	   = $name
+				"Firstname" = $_.'First Name'
+				"Surname"   = $_.'Last Name'
 				"Division" = $division
 			}
 			
@@ -684,8 +686,10 @@ function New-CertificateList
 			{
 				$name = ConvertTo-CapitalizedName -name $_.'Skater 2 Name'
 				$spring_results += New-Object -TypeName PSObject -Property @{
-					"Name"	   = $name
-					"Division" = $division
+					"Name"      = $name
+					"Firstname" = $_.'Skater 2 Name: (First Name)'
+					"Surname"   = $_.'Skater 2 Name: (Last Name)'
+					"Division"  = $division
 				}
 			}
 		}
@@ -693,6 +697,8 @@ function New-CertificateList
 		{
 			$champs_results += New-Object -TypeName PSObject -Property @{
 				"Name"	   = $name
+				"Firstname" = $_.'First Name'
+				"Surname"   = $_.'Last Name'
 				"Division" = $division
 			}
 			
@@ -701,6 +707,8 @@ function New-CertificateList
 				$name = ConvertTo-CapitalizedName -name $_.'Skater 2 Name'
 				$champs_results += New-Object -TypeName PSObject -Property @{
 					"Name"	   = $name
+					"Firstname" = $_.'Skater 2 Name: (First Name)'
+					"Surname"   = $_.'Skater 2 Name: (Last Name)'
 					"Division" = $division
 				}
 			}
@@ -710,7 +718,7 @@ function New-CertificateList
 	if ($spring_results.Count -gt 0)
 	{
 		Write-Host " - generating $($spring_results.Count) Spring Comp Certificates."
-		$spring_results | Select-Object "Name", "Division" | Sort-Object -Property "Division" | Export-Csv -path $spring_comp_csv -Force -NoTypeInformation
+		$spring_results | Sort-Object -Property "Division","Surname","Firstname" | Select-Object "Name", "Division" | Export-Csv -path $spring_comp_csv -Force -NoTypeInformation
 		if ($prompt)
 		{
 			$certificate_template_spring_comp = Find-Template -message "Select Spring Comp Certificate Template" -initial_dir $template_folder -default $certificate_template_spring_comp
@@ -729,7 +737,7 @@ function New-CertificateList
 	if ($champs_results.Count -gt 0)
 	{
 		Write-Host " - generating $($champs_results.Count) ACT Champs Certificates."
-		$champs_results | Select-Object "Name", "Division" | Sort-Object -Property "Division" | Export-Csv -path $act_champs_csv -Force -NoTypeInformation
+		$champs_results | Sort-Object -Property "Division", "Surname", "Firstname" | Select-Object "Name", "Division" | Export-Csv -path $act_champs_csv -Force -NoTypeInformation
 		if ($prompt)
 		{
 			$certificate_template_act_champs = Find-Template -message "Select ACT Champs Certificate Template" -initial_dir $template_folder -default $certificate_template_act_champs
