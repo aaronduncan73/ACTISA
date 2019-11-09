@@ -585,11 +585,9 @@ function New-CertificateList
 		New-Item $folder -Type Directory | Out-Null
 	}
 	
-	$spring_comp_csv = [System.IO.Path]::Combine($folder, "spring_comp_inputs.csv")
-	$act_champs_csv = [System.IO.Path]::Combine($folder, "act_champs_inputs.csv")
+	$input_csv = [System.IO.Path]::Combine($folder, "autumn_trophy_inputs.csv")
 	
-	$spring_results = @()
-	$champs_results = @()
+	$results = @()
 	$entries | ForEach-Object {
 		$name = ConvertTo-CapitalizedName -name $_.'Skater 1 Name'
 		$category = $_.Division.Split(";")[0].trim()
@@ -610,46 +608,37 @@ function New-CertificateList
 			Write-Host "    - $name ($division)"
 		}
 		
-		
-		if ($category.startswith("Aussie") -or $division -match 'Prelim|Elementary|Copper|Bronze')
-		{
-			$spring_results += New-Object -TypeName PSObject -Property @{
-				"Name"	    = $name
-				"Division"  = $division
-			}
-			
-			if ($category -match "Dance")
-			{
-				$name = ConvertTo-CapitalizedName -name $_.'Skater 2 Name'
-				$spring_results += New-Object -TypeName PSObject -Property @{
-					"Name"	    = $name
-					"Division"  = $division
-				}
-			}
+		$results += New-Object -TypeName PSObject -Property @{
+			"Name"	    = $name
+			"Firstname" = $_.'First Name'
+			"Surname"   = $_.'Last Name'
+			"Division"  = $division
 		}
-		else
+		
+		if ($category -match "Dance")
 		{
-			$champs_results += New-Object -TypeName PSObject -Property @{
+			$name = ConvertTo-CapitalizedName -name $_.'Skater 2 Name'
+			$results += New-Object -TypeName PSObject -Property @{
 				"Name"	    = $name
+				"Firstname" = $_.'Skater 2 Name: (First Name)'
+				"Surname"   = $_.'Skater 2 Name: (Last Name)'
 				"Division"  = $division
-			}
-			
-			if ($category -match "Dance")
-			{
-				$name = ConvertTo-CapitalizedName -name $_.'Skater 2 Name'
-				$champs_results += New-Object -TypeName PSObject -Property @{
-					"Name"	    = $name
-					"Division"  = $division
-				}
 			}
 		}
 	}
 	
-	if ($spring_results.Count -gt 0)
+	if ($results.Count -gt 0)
 	{
-		Write-Host " - generating $($spring_results.Count) Spring Comp Certificates."
-		$spring_results | Select-Object "Name", "Division" | export-csv -path $spring_comp_csv -Force -NoTypeInformation
-		$spring_comp_template = Find-Template -message "Select Spring Comp Certificate Template" -initial_dir $template_folder -default $certificate_template_spring_comp
+		Write-Host " - generating $($results.Count) Spring Comp Certificates."
+		$results | Sort-Object -Property "Division", "Surname", "Firstname" | Select-Object "Name", "Division" | export-csv -path $spring_comp_csv -Force -NoTypeInformation
+		if ($prompt)
+		{
+			$spring_comp_template = Find-Template -message "Select Spring Comp Certificate Template" -initial_dir $template_folder -default $certificate_template_spring_comp
+		}
+		else
+		{
+			$spring_comp_template = Resolve-Path -Path "${template_folder}/${certificate_template_spring_comp}"
+		}
 		Invoke-MailMerge -template $spring_comp_template -datasource $spring_comp_csv -destination $folder
 	}
 	else
@@ -657,11 +646,18 @@ function New-CertificateList
 		Write-Host " - no Spring Comp entries..."
 	}
 	
-	if ($champs_results.Count -gt 0)
+	if ($results.Count -gt 0)
 	{
-		Write-Host " - generating $($champs_results.Count) ACT Champs Certificates."
-		$champs_results | Select-Object "Name", "Division" | export-csv -path $act_champs_csv -Force -NoTypeInformation
-		$act_champs_template = Find-Template -message "Select ACT Champs Certificate Template" -initial_dir $template_folder -default $certificate_template_act_champs
+		Write-Host " - generating $($results.Count) ACT Champs Certificates."
+		$results | Sort-Object -Property "Division", "Surname", "Firstname" | Select-Object "Name", "Division" | export-csv -path $act_champs_csv -Force -NoTypeInformation
+		if ($prompt)
+		{
+			$act_champs_template = Find-Template -message "Select ACT Champs Certificate Template" -initial_dir $template_folder -default $certificate_template_act_champs
+		}
+		else
+		{
+			$act_champs_template = Resolve-Path -Path "${template_folder}/${certificate_template_act_champs}"
+		}
 		Invoke-MailMerge -template $act_champs_template -datasource $act_champs_csv -destination $folder
 	}
 	else

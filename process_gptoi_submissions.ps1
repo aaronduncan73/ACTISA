@@ -298,8 +298,14 @@ function New-CertificateList
 		New-Item $folder -Type Directory | Out-Null
 	}
 	
-	$template = Find-Template -message "Select Certificate Template" -initial_dir $template_folder -default $certificate_template
-	
+	if ($prompt)
+	{
+		$template = Find-Template -message "Select Certificate Template" -initial_dir $template_folder -default $certificate_template
+	}
+	else
+	{
+		$template = Resolve-Path -Path "${template_folder}/${certificate_template}"
+	}
 	$input_csv = [System.IO.Path]::Combine($folder, "certificate_inputs.csv")
 	
 	#Write-Host "Input CSV file: $input_csv"

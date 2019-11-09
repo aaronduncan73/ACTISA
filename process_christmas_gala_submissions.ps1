@@ -34,7 +34,7 @@ $abbreviations = @{
 #     - copy link
 
 # the '2019 Christmas Gala' form on the ACTISA account
-$google_sheet_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRPrJY_zj6i-Ir-qfZARYjloDENPnYha6kwFjeJdkOEXZ12w6tD9kP3P46pQYi59Hm7ANjg_e7WdpPg/pub?output=tsv'
+$google_sheet_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR_BpD1-e_kCZrkBjAIcCdtmX80eRPZMdjWHhsQIH-hRV1AlChzqefPatKtazxAXqXsuEaZ1t7Xklen/pub?output=xlsx'
 
 $template_folder = 'D:\Skating Templates';
 
@@ -61,17 +61,23 @@ if (!(Test-Path -Path $comp_folder))
 	.PARAMETER filename
 		A description of the filename parameter.
 	
-	.PARAMETER skatername
-		A description of the skatername parameter.
+	.PARAMETER skaternames
+		A description of the skaternames parameter.
 	
 	.PARAMETER destination
 		A description of the destination parameter.
+	
+	.PARAMETER title
+		A description of the title parameter.
+	
+	.PARAMETER skatername
+		A description of the skatername parameter.
 	
 	.PARAMETER program
 		A description of the program parameter.
 	
 	.EXAMPLE
-				PS C:\> Publish-MusicFile
+		PS C:\> Publish-MusicFile
 	
 	.NOTES
 		Additional information about the function.
@@ -80,10 +86,14 @@ function Publish-MusicFile
 {
 	param
 	(
+		[string]
 		$filename,
-		$skatername,
+		[string[]]
+		$skaternames,
+		[string]
 		$destination,
-		$program
+		[string]
+		$title
 	)
 	
 	#
@@ -100,25 +110,9 @@ function Publish-MusicFile
 	}
 	
 	#
-	# determine the destination music folder
-	#
-	$music_subdir = $division
-	
-	$music_dest = [System.IO.Path]::Combine($destination, $music_subdir)
-	
-	#
 	# Calculate the new music filename
 	#
-	
-	$new_music_file = $division -replace "\(.*\)", ""
-	
-	foreach ($key in $abbreviations.Keys)
-	{
-		$new_music_file = $new_music_file -replace $key, $abbreviations.Item($key)
-	}
-	
-	$new_music_file = $new_music_file -replace " ; ", "_" -replace " ", ""
-	$new_music_file += "_${program}_${skatername}"
+	$new_music_file = "$($skaternames -join '-') - ${title}"
 	
 	if ([String]::IsNullOrEmpty($music_duration))
 	{
@@ -130,18 +124,12 @@ function Publish-MusicFile
 	}
 	else
 	{
-		$new_music_file += "_${music_duration}"
+		$new_music_file += " - ${music_duration}"
 	}
 	
-	$new_music_file += $extension
+	$new_music_file += [System.IO.Path]::GetExtension($filename)
 	
-	$new_music_path = [System.IO.Path]::Combine($music_dest, $new_music_file)
-	
-	if ((Test-Path $music_dest -ErrorAction SilentlyContinue) -eq $false)
-	{
-		$music_dest = [System.IO.Path]::Combine($destination, $music_subdir)
-		New-Item $music_dest -Type Directory | Out-Null
-	}
+	$new_music_path = [System.IO.Path]::Combine($destination, $new_music_file)
 	
 	if ((Test-Path $filename -PathType Leaf -ErrorAction SilentlyContinue) -eq $false)
 	{
@@ -164,6 +152,72 @@ function Publish-MusicFile
 			""
 		}
 	}
+}
+
+<#
+	.SYNOPSIS
+		Get the requested number of skaters
+	
+	.DESCRIPTION
+		A detailed description of the Get-SkaterNames function.
+	
+	.PARAMETER entry
+		A description of the entry parameter.
+	
+	.PARAMETER numskaters
+		A description of the numskaters parameter.
+	
+	.EXAMPLE
+				PS C:\> Get-SkaterNames
+	
+	.NOTES
+		Additional information about the function.
+#>
+function Get-SkaterNames
+{
+	[CmdletBinding()]
+	[OutputType([string[]])]
+	param
+	(
+		$entry,
+		$numskaters = '6'
+	)
+	
+	[string[]]$names = @()
+	for ($i = 0; $i -lt $numskaters; $i++)
+	{
+		$name = Get-SkaterName -entry $entry -number $i
+		if (-not [String]::IsNullOrEmpty($name))
+		{
+			$names += $name
+		}
+	}
+	
+	return $names
+}
+
+
+
+function Get-SkaterName
+{
+	[CmdletBinding()]
+	param
+	(
+		$entry,
+		[int]
+		$number
+	)
+	
+	[string]$name = $null
+	
+	if ($entry."Skater $number Details:" -match 'Last Name: (\S+)\W+First Name: (\S+)\W+Date of Birth: .*')
+	{
+		$surname = ConvertTo-CapitalizedName -name $matches[1]
+		$firstname = ConvertTo-CapitalizedName -name $matches[2]
+		$name = "$firstname $surname"
+	}
+	
+	return $name
 }
 
 <#
@@ -199,10 +253,12 @@ function Publish-EntryMusicFiles
 	
 	$submission_id = $entry.'Submission ID'
 	$music_url = $entry.'Music File:'
-	
-	$name = ConvertTo-CapitalizedName -name $entry.'Skater 1 Name'
+	$music_title = $entry.'Music Title:'
 	
 	$submission_folder = [System.IO.Path]::Combine($submissionFullPath, "${submission_id}")
+	
+	Write-Host "Music URL: $music_url"
+	Write-Host "Music Title: $music_title"
 	
 	# half ice divisions don't have music file uploads
 	$music_file = [System.Web.HttpUtility]::UrlDecode($music_url.Split("/")[-1]);
@@ -222,7 +278,14 @@ function Publish-EntryMusicFiles
 		Get-WebFile -url $music_url -destination $music_fullpath
 	}
 	
-	Publish-MusicFile -filename $music_fullpath -skatername $name -gender $gender -destination $music_folder -program "Gala"
+	[string[]]$names = Get-SkaterNames -entry $entry
+	if ($names.Length -eq 0)
+	{
+		$names = "NameNotFound"
+	}
+	
+	#Copy-Item -Path $music_fullpath -Destination $destination
+	Publish-MusicFile -filename $music_fullpath -skaternames $names -title $music_title -destination $music_folder
 }
 
 <#
@@ -257,33 +320,33 @@ function New-RegistrationList
 		$format = 'csv'
 	)
 	
+	Write-Host "Generating Skater Registration List ($format)"
+	
 	if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
 	{
 		New-Item $folder -Type Directory | Out-Null
 	}
 	
-	$list_csv = [System.IO.Path]::Combine($folder, "registration_list.csv")
+	$filename = [System.IO.Path]::Combine($folder, "registration_list.${format}")
 	
 	$hash = @{ }
 	foreach ($entry in $entries)
 	{
-		$surname = ConvertTo-CapitalizedName -name $entry.'Last Name'
-		if (!$hash.ContainsKey($surname))
+		for ($i = 1; $i -le 6; $i++)
 		{
-			$hash[$surname] = @{ }
-		}
-		$firstname = ConvertTo-CapitalizedName -name $entry.'First Name'
-		$hash[$surname].Add($firstname, $true)
-		
-		if ($entry.Division -match 'Dance')
-		{
-			$surname = ConvertTo-CapitalizedName -name $entry.'Skater 2 Name (Last Name)'
-			if (!$hash.ContainsKey($surname))
+			if ($entry."Skater $i Details:" -match 'Last Name: (\w+)\W+First Name: (\w+)\W+Date of Birth: .*')
 			{
-				$hash[$surname] = @{ }
+				$surname= ConvertTo-CapitalizedName -name $matches[1]
+				if (!$hash.ContainsKey($surname))
+				{
+					$hash[$surname] = @{ }
+				}
+				$firstname = ConvertTo-CapitalizedName -name $matches[2]
+				if (-not $hash[$surname].ContainsKey($firstname))
+				{
+					$hash[$surname].Add($firstname, $true)
+				}
 			}
-			$firstname = ConvertTo-CapitalizedName -name $entry.'Skater 2 Name (First Name)'
-			$hash[$surname].Add($firstname, $true)
 		}
 	}
 	
@@ -337,27 +400,18 @@ function New-VolunteerSpreadsheet
 	
 	$spreadsheet = [System.IO.Path]::Combine($folder, "volunteer.${format}");
 	
-	$headers = @("Name", "Division", "Volunteer Name", "Volunteer E-mail", "Volunteer Phone", "Availability", "Roles", "Other Notes")
+	$headers = @("Name", "Volunteer Name", "Volunteer E-mail", "Volunteer Phone", "Availability", "Roles", "Other Notes")
 	$rows = @()
 	foreach ($entry in $entries)
 	{
 		if (-not [String]::IsNullOrEmpty($entry.'I am able to assist with the following tasks:'))
 		{
-			$category = $entry.Division.Split(";")[0].trim()
-			$division = $entry.Division.Split(";")[1].trim()
-			
-			if ($category -eq "Adult")
-			{
-				$division = "Adult ${division}"
-			}
-			
 			$rows += (@{
 					'border'  = $true;
 					'values'  = @($entry.'Skater 1 Name',
-						$division,
-						$entry.'Volunteer Name',
-						$entry.'Volunteer E-mail',
-						$entry.'Volunteer Contact Mobile',
+						$entry.'Volunteer Name:',
+						$entry.'Volunteer E-mail:',
+						$entry.'Volunteer Contact Mobile:',
 						$entry.'Availability:',
 						$entry.'I am able to assist with the following tasks:',
 						$entry.'Other Notes:')
@@ -407,29 +461,99 @@ function New-PaymentSpreadsheet
 	$rows = @()
 	foreach ($entry in $entries)
 	{
-		$category = $entry.Division.Split(";")[0].trim()
-		$division = $entry.Division.Split(";")[1].trim()
-		
-		if ($category -eq "Adult")
-		{
-			$division = "Adult ${division}"
-		}
-		
-		$parentName = $entry.'Parent/Guardian Name: (First Name)' + ' ' + $entry.'Parent/Guardian Name: (Last Name)'
 		$rows += (@{
 				'border'  = $true;
 				'values'  = @(
-					$entry.'Skater 1 Name',
-					$division,
-					$parentName,
+					((Get-SkaterNames $entry) -join '\n'),
+					$entry.'Primary Contact E-mail',
+					$entry.'Primary Contact Mobile',
 					$entry.'Payment due (AUD)',
-					$entry.'Direct Debit Receipt')
+					$entry.'Direct Debit Receipt:')
 			})
 	}
 	
 	if ($rows.Count -gt 0)
 	{
-		$headers = @("Skater Name", "Division", "Parent/Guardian (if applicable)", "Payment Due (AUD)", "Direct Debit Receipt")
+		$headers = @("Skater Name(s)", "Primary Contact E-mail", "Primary Contact Mobile", "Payment Due (AUD)", "Direct Debit Receipt")
+		New-SpreadSheet -name "Payments" -path $filepath -headers $headers -rows $rows -format $format
+	}
+}
+
+<#
+	.SYNOPSIS
+		Create Skater Entry Spreadsheet
+	
+	.DESCRIPTION
+		A detailed description of the  function.
+	
+	.PARAMETER entries
+		A description of the entries parameter.
+	
+	.PARAMETER folder
+		A description of the folder parameter.
+	
+	.EXAMPLE
+				PS C:\> 
+	
+	.NOTES
+		Additional information about the function.
+#>
+function New-SkaterEntriesSpreadsheet
+{
+	param
+	(
+		$entries,
+		[string]
+		$folder,
+		[string]
+		$format = 'csv'
+	)
+	
+	Write-Host "Generating Skater Entries Spreadsheet ($format)"
+	
+	if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
+	{
+		New-Item $folder -Type Directory | Out-Null
+	}
+	
+	$rows = @()
+	foreach ($entry in $entries)
+	{
+		$submission_id = $entry.'Submission ID'
+		$music_url = $entry.'Music File:'
+		
+		$filepath = [System.IO.Path]::Combine($folder, "entries.${format}");
+		$submission_folder = [System.IO.Path]::Combine($submissionFullPath, "${submission_id}")
+		
+		# half ice divisions don't have music file uploads
+		$music_file = [System.Web.HttpUtility]::UrlDecode($music_url.Split("/")[-1]);
+		
+		$music_fullpath = [System.IO.Path]::Combine($submission_folder, $music_file)
+		
+		try
+		{
+			$music_duration = Get-MusicFileDuration -filename $music_fullpath
+		}
+		catch
+		{
+			$music_duration = $null
+			Write-Warning "Invalid Music File: $filename"
+		}
+		
+		$rows += (@{
+				'border' = $true;
+				'values' = @(
+					((Get-SkaterNames $entry) -join '\n'),
+					$entry.'Primary Contact E-mail',
+					$entry.'Primary Contact Mobile',
+					$entry.'Music Title:',
+					$music_duration)
+			})
+	}
+	
+	if ($rows.Count -gt 0)
+	{
+		$headers = @("Skater Name(s)", "Primary Contact E-mail", "Primary Contact Mobile", "Music Title", "Music Duration")
 		New-SpreadSheet -name "Payments" -path $filepath -headers $headers -rows $rows -format $format
 	}
 }
@@ -462,7 +586,16 @@ $schedule_folder    = [System.IO.Path]::Combine($comp_folder, "Schedule")
 Write-Host "Competition Folder: $comp_folder"
 write-host "Music Folder: $music_folder"
 
-$entries = Get-SubmissionEntries -url $google_sheet_url
+
+$entries = @()
+foreach ($entry in (Get-SubmissionEntries -url $google_sheet_url))
+{
+	# strip out entries with no submission ID
+	if (-not [String]::IsNullOrWhiteSpace($entry.'Submission ID'))
+	{
+		$entries += $entry
+	}
+}
 
 foreach ($entry in $entries)
 {
@@ -471,11 +604,12 @@ foreach ($entry in $entries)
 
 Write-Host "Number of entries = $($entries.Count)`n" -ForegroundColor Yellow
 
-#generate_certificates          -entries $entries -folder $certificate_folder 
-#generate_skating_schedule      -entries $entries -folder $schedule_folder
-#generate_division_counts       -entries $entries -folder $eventFolder
-New-RegistrationList  -entries $entries -folder $eventFolder -format 'xlsx'
-New-VolunteerSpreadsheet -entries $entries -folder $eventFolder -format 'xlsx'
-New-PaymentSpreadsheet -entries $entries -folder $eventFolder -format 'xlsx'
+New-RegistrationList -entries $entries -folder $comp_folder -format 'xlsx'
+New-VolunteerSpreadsheet -entries $entries -folder $comp_folder -format 'xlsx'
+New-PaymentSpreadsheet -entries $entries -folder $comp_folder -format 'xlsx'
+New-SkaterEntriesSpreadsheet -entries $entries -folder $comp_folder -submissionFolder $submissionFullPath -format 'xlsx'
+
+# skater email list
+# coach email list
 
 #Read-Host -Prompt "Press Enter to exit"
