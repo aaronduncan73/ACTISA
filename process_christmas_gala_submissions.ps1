@@ -210,7 +210,7 @@ function Get-SkaterName
 	
 	[string]$name = $null
 	
-	if ($entry."Skater $number Details:" -match 'Last Name: (\S+)\W+First Name: (\S+)\W+Date of Birth: .*')
+	if ($entry."Skater $number Details:" -match 'Last Name: (.*)\W+First Name: (.*)\W+Date of Birth: .*')
 	{
 		$surname = ConvertTo-CapitalizedName -name $matches[1]
 		$firstname = ConvertTo-CapitalizedName -name $matches[2]
@@ -263,7 +263,7 @@ function Publish-EntryMusicFiles
 	# half ice divisions don't have music file uploads
 	$music_file = [System.Web.HttpUtility]::UrlDecode($music_url.Split("/")[-1]);
 	
-	$music_fullpath = [System.IO.Path]::Combine($submission_folder, $music_file)
+	$music_fullpath = [System.IO.Path]::Combine($submission_folder, $music_file) -replace '\[.*\]',''
 	
 	$extension = [System.IO.Path]::GetExtension($music_file)
 	
@@ -334,7 +334,7 @@ function New-RegistrationList
 	{
 		for ($i = 1; $i -le 6; $i++)
 		{
-			if ($entry."Skater $i Details:" -match 'Last Name: (\w+)\W+First Name: (\w+)\W+Date of Birth: .*')
+			if ($entry."Skater $i Details:" -match 'Last Name: (.*)\W+First Name: (.*)\W+Date of Birth: .*')
 			{
 				$surname= ConvertTo-CapitalizedName -name $matches[1]
 				if (!$hash.ContainsKey($surname))
@@ -400,7 +400,7 @@ function New-VolunteerSpreadsheet
 	
 	$spreadsheet = [System.IO.Path]::Combine($folder, "volunteer.${format}");
 	
-	$headers = @("Name", "Volunteer Name", "Volunteer E-mail", "Volunteer Phone", "Availability", "Roles", "Other Notes")
+	$headers = @("Skater Name(s)", "Volunteer Name", "Volunteer E-mail", "Volunteer Phone", "Availability", "Roles", "Other Notes")
 	$rows = @()
 	foreach ($entry in $entries)
 	{
@@ -408,7 +408,8 @@ function New-VolunteerSpreadsheet
 		{
 			$rows += (@{
 					'border'  = $true;
-					'values'  = @($entry.'Skater 1 Name',
+					'values' = @(
+						((Get-SkaterNames $entry) -join ", "),
 						$entry.'Volunteer Name:',
 						$entry.'Volunteer E-mail:',
 						$entry.'Volunteer Contact Mobile:',
@@ -464,7 +465,7 @@ function New-PaymentSpreadsheet
 		$rows += (@{
 				'border'  = $true;
 				'values'  = @(
-					((Get-SkaterNames $entry) -join '\n'),
+					((Get-SkaterNames $entry) -join ", "),
 					$entry.'Primary Contact E-mail',
 					$entry.'Primary Contact Mobile',
 					$entry.'Payment due (AUD)',
@@ -528,7 +529,7 @@ function New-SkaterEntriesSpreadsheet
 		# half ice divisions don't have music file uploads
 		$music_file = [System.Web.HttpUtility]::UrlDecode($music_url.Split("/")[-1]);
 		
-		$music_fullpath = [System.IO.Path]::Combine($submission_folder, $music_file)
+		$music_fullpath = [System.IO.Path]::Combine($submission_folder, $music_file) -replace '\[.*\]', ''
 		
 		try
 		{
@@ -543,7 +544,7 @@ function New-SkaterEntriesSpreadsheet
 		$rows += (@{
 				'border' = $true;
 				'values' = @(
-					((Get-SkaterNames $entry) -join '\n'),
+					((Get-SkaterNames $entry) -join ', '),
 					$entry.'Primary Contact E-mail',
 					$entry.'Primary Contact Mobile',
 					$entry.'Music Title:',

@@ -243,7 +243,7 @@ function Get-WebFile
 	catch
 	{
 		"Download failed: '$url'"
-		"Encoded url: '$encoded'"
+		"Encoded url: '$enc_url'"
 		"Destination: '$destination'"
 		"ERROR Message:" + $_.Exception.Message
 	}
