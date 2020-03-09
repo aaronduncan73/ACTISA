@@ -52,8 +52,8 @@ $abbreviations = @{
 #     - Click OK
 #     - copy link
 
-# the '2019 Autumn Trophy' form on the ACTISA account
-$google_sheet_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSZ5Af0Ij-7gYNrAtneTLoJuNQSBkShvbmF9Sb2oGDNEHYcO-pD9KEFK5uge8ge_rStkh0Aw9JfJlbB/pub?output=tsv'
+# the '2020 Autumn Trophy' form on the ACTISA account
+$google_sheet_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSHLsUWhFt1HpjpXcRQuZx8Xe7JOeK9mHEZ6Dxg_mBbMFt3uUyWgtRJ7Z1mgECWbyJ5E8A7hqeP1zoo/pub?output=xlsx'
 
 $template_folder = 'D:\Skating Templates';
 
