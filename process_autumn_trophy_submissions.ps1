@@ -61,7 +61,14 @@ $Competition = "Autumn Trophy $(Get-Date -Format yyyy)";
 
 $certificate_template = "Certificate - $Competition.docx"
 
-$comp_folder = "D:\ACTISA_COMP - $($Competition)"
+if (Test-Path D:)
+{
+	$comp_folder = "D:\ACTISA_COMP - $($Competition)"
+}
+else
+{
+	$comp_folder = "C:\ACTISA_COMP - $($Competition)"
+}
 
 if (!(Test-Path -Path $comp_folder))
 {
@@ -122,9 +129,35 @@ function Publish-SkaterMusicFile
 	#
 	# Get the duration of the song from the metadata
 	#
+	$extension = [System.IO.Path]::GetExtension($filename)
 	try
 	{
 		$music_duration = Get-MusicFileDuration -filename $filename
+		if ($music_duration -eq 'notfound')
+		{
+			# we failed to get the metadata from the file, so try an alternate file extension
+			if ($extension -eq 'mp3')
+			{
+				$newExt = 'm4a'
+			}
+			else
+			{
+				$newExt = 'mp3'
+			}
+			
+			# make a copy of the file with the new file extension
+			$newFilename = [System.IO.Path]::ChangeExtension($filename, $newExt)
+			Copy-Item $filename $newFilename
+			
+			# get the duration of the song from the new file
+			$music_duration = Get-MusicFileDuration -filename $newFilename
+			if ($music_duration -ne 'notfound')
+			{
+				# we got a duration this time, so reference the new file (with the valid extension)
+				$filename = $newFilename
+				$extension = $newExt
+			}
+		}
 	}
 	catch
 	{
@@ -342,7 +375,7 @@ function Publish-EntryMusicFiles
 		
 		if ($division -match 'Advanced Novice|Junior|Senior')
 		{
-			Write-Host "Splitting music_sp_url: '${music_sp_url}'"
+			#Write-Host "Splitting music_sp_url: '${music_sp_url}'"
 			$music_sp_file = [System.Web.HttpUtility]::UrlDecode($music_sp_url.Split("/")[-1]);
 			$music_sp_fullpath = [System.IO.Path]::Combine($submission_folder, $music_sp_file)
 			
@@ -641,7 +674,7 @@ function New-CertificateList
 		{
 			$comp_template = Resolve-Path -Path "${template_folder}/${certificate_template}"
 		}
-		Write-Host "COMP TEMPLATE: ${comp_template}"
+		#Write-Host "COMP TEMPLATE: ${comp_template}"
 		Invoke-MailMerge -template $comp_template -datasource $input_csv -destination $folder
 	}
 	else
