@@ -59,7 +59,7 @@ $abbreviations = @{
 #     - copy link
 
 # the '2019 Carnival of Artistic Skating and TOI' form on the ACTISA account
-$google_sheet_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRS41PTQyGeHZJhPpZmGvlViCWgTu8dHsgvIOWo7lVa3WcOUfx4gK91uOi5g_K5e7_fdJ8Sl9PdYIuN/pub?output=tsv'
+$google_sheet_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQKmBIRD1QL3swOhGIA21RYzNF9LPhgLx-s41uEWYsjCaHPYVRpuZqyBL0rFzuLnojt3ymPZQivLq3D/pub?output=xlsx'
 
 $template_folder = 'D:\Skating Templates';
 
@@ -630,24 +630,10 @@ function New-DivisionCountsSpreadsheet
 	$filepath = [System.IO.Path]::Combine($folder, "division_counts.${format}")
 	if (Test-Path $filepath) { Remove-Item -Path $filepath }
 	
-	$gender = @{ Female = "Ladies"; Male = "Men" }
-	
 	$divhash = @{ }
 	foreach ($entry in $entries)
 	{
-		$division = $entry.'Division'
-		
-		if ($division -notmatch "Aussie Skate" -and $division -notmatch "Dance")
-		{
-			try
-			{
-				$division += " " + $gender[$entry.'Skater 1 Gender:']
-			}
-			catch
-			{
-				Write-Warning "failed to get gender for $($entry.'Skater 1 Name')"
-			}
-		}
+		$division = $entry.'Division:'
 		
 		if (!$divhash.ContainsKey($division))
 		{
@@ -661,26 +647,26 @@ function New-DivisionCountsSpreadsheet
 	$trophy_count = @{ gold = 0; silver = 0; bronze = 0 }
 	$medal_count = @{ gold = 0; silver = 0; bronze = 0 }
 	
-	foreach ($div in $divhash.Keys | Sort-Object)
+	foreach ($division in $divhash.Keys | Sort-Object)
 	{
-		$category = $div.Split(";")[0].trim()
-		$division = $div.Split(";")[1].trim()
-		
-		if ($category -match "Adult|Dance")
+		Write-Host "DIV: $division"
+		$divnum = $division.Split("-")[0].Split(" ")[1]
+		Write-Host "Division Number: $divnum"
+		if ($divnum -lt 9)
 		{
-			#$division = "$category $division"
+			$numSkaters = 1
 		}
-		
-		if ($category -match 'Couple')
+		elseif ($divnum -eq 9)
 		{
 			$numSkaters = 2
 		}
 		else
 		{
-			$numSkaters = 1
+			Write-Warning "WARNING: Division Count Spreadsheet unimplemented for teams!"
+			$numSkaters = 24
 		}
 		
-		$count = $divhash.Item($div).Count
+		$count = $divhash.Item($division).Count
 		$trophy_gold = ""
 		$trophy_silver = ""
 		$trophy_bronze = ""
@@ -894,9 +880,14 @@ function New-CoachEmailList
 	
 	$headers = @('Coach Name', 'Coach E-Mail')
 	$rows = @()
+	$hash = @{ }
 	foreach ($entry in $entries)
 	{
-		$rows += (@{ 'border' = $true; 'values' = @($entry.'Primary Coach Name:', $entry.'Primary Coach E-mail:') })
+		$hash[$entry.'Primary Coach Name:'] = $entry.'Primary Coach E-mail:'
+	}
+	foreach ($name in $hash.Keys | Sort-Object)
+	{
+		$rows += (@{ 'border' = $true; 'values' = @($name, $hash[$name]) })
 	}
 	
 	New-Spreadsheet -name "Coach E-Mail List" -path $filename -headers $headers -rows $rows -format $format
@@ -955,7 +946,7 @@ function New-RegistrationList
 			$hash[$surname].Add($firstname, $true)
 		}
 		
-		if ($entry.Division -match 'Dance')
+		if ($entry.'Division:' -match 'Dance')
 		{
 			$surname = ConvertTo-CapitalizedName -name $entry.'Skater 2 Name: (Last Name)'
 			if (!$hash.ContainsKey($surname))
@@ -1027,13 +1018,7 @@ function New-VolunteerSpreadsheet
 	{
 		if (-not [String]::IsNullOrEmpty($entry.'I am able to assist with the following tasks:'))
 		{
-			$category = $entry.Division.Split(";")[0].trim()
-			$division = $entry.Division.Split(";")[1].trim()
-			
-			if ($category -eq "Adult")
-			{
-				$division = "Adult ${division}"
-			}
+			$division = $entry.'Division:'
 			
 			$rows += (@{
 					'border' = $true;
@@ -1094,13 +1079,7 @@ function New-PaymentSpreadsheet
 	$rows = @()
 	foreach ($entry in $entries)
 	{
-		$category = $entry.Division.Split(";")[0].trim()
-		$division = $entry.Division.Split(";")[1].trim()
-		
-		if ($category -eq "Adult")
-		{
-			$division = "Adult ${division}"
-		}
+		$division = $entry.'Division:'
 		
 		$parentName = $entry.'Parent/Guardian Name: (First Name)' + ' ' + $entry.'Parent/Guardian Name: (Last Name)'
 		$rows += (@{
@@ -1172,10 +1151,10 @@ function New-CoachSkatersList
 		{
 			$hash[$coach_name] = @()
 		}
-		$hash[$coach_name] += $entry.'Skater 1 Name' + " ($($entry.Division))"
-		if (![String]::IsNullOrEmpty($entry.'Skater 1 Name'))
+		$hash[$coach_name] += $entry.'Skater 1 Name' + " ($($entry.'Division:'))"
+		if (![String]::IsNullOrEmpty($entry.'Skater 2 Name'))
 		{
-			$hash[$coach_name] += $entry.'Skater 2 Name' + " ($($entry.Division))"
+			$hash[$coach_name] += $entry.'Skater 2 Name' + " ($($entry.'Division:'))"
 		}
 	}
 	
@@ -1233,13 +1212,10 @@ function New-PhotoPermissionList
 	$rows = @()
 	foreach ($entry in $entries)
 	{
-		$catdiv = $entry.Division.Split(";")
-		$category = $catdiv[0].trim()
-		$division = $catdiv[1].trim()
 		$rows += (@{
 				'border' = $true;
 				'values' = @($category,
-					$division,
+					$entry.'Division:',
 					$entry.'Skater 1 Name',
 					$entry.'Skater 2 Name',
 					$entry.'I give permission for the Australian Capital Territory Ice Skating Association (ACTISA) to take photographs of myself/my child, and use the footage for promotional purposes on the official ACTISA website and social media.'
@@ -1295,9 +1271,8 @@ function New-MembershipAndPOASpreadsheet
 	$list = @{ }
 	foreach ($entry in $entries)
 	{
-		$catdiv = $entry.Division.Split(";")
-		$category = $catdiv[0].trim()
-		$division = $catdiv[1].trim()
+		$division = $entry.'Division:'
+		Write-Host "Division: '$division'"
 		
 		$name = $entry.'Skater 1 Name'
 		if (-not $list.ContainsKey($name))
@@ -1307,7 +1282,6 @@ function New-MembershipAndPOASpreadsheet
 				@(
 					$name,
 					$entry.'Skater 1 State/Territory:',
-					$category,
 					$division,
 					$entry.'Primary Coach Name:',
 					$entry.'Other Coach Names:',
@@ -1326,7 +1300,6 @@ function New-MembershipAndPOASpreadsheet
 					@(
 						$name,
 						$entry.'Skater 2 State/Territory:',
-						$category,
 						$division,
 						$entry.'Primary Coach Name:',
 						$entry.'Other Coach Names:',
@@ -1338,7 +1311,7 @@ function New-MembershipAndPOASpreadsheet
 		
 	}
 	
-	$headers = @('Name', 'State', 'Category', 'Division', 'Primary Coach', 'Other Coaches', 'Membership #', 'POA')
+	$headers = @('Name', 'State', 'Division', 'Primary Coach', 'Other Coaches', 'Membership #', 'POA')
 	$rows = @()
 	foreach ($entry in $list.Values)
 	{
