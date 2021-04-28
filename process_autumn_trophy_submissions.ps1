@@ -53,9 +53,9 @@ $abbreviations = @{
 #     - copy link
 
 # the '2020 Autumn Trophy' form on the ACTISA account
-$google_sheet_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSHLsUWhFt1HpjpXcRQuZx8Xe7JOeK9mHEZ6Dxg_mBbMFt3uUyWgtRJ7Z1mgECWbyJ5E8A7hqeP1zoo/pub?output=xlsx'
+$google_sheet_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR4Nw5LFzH7r5vFdZU-u39kXfpwxguYQPDgvzcENeiAWmEec7b2T616VjhQYchPxh7N4D5xmPGDh0BJ/pub?output=xlsx'
 
-$template_folder = 'D:\Skating Templates';
+$template_folder = 'D:\Jotform MailMerge Templates';
 
 $Competition = "Autumn Trophy $(Get-Date -Format yyyy)";
 
@@ -288,16 +288,16 @@ function Publish-EntryMusicFiles
 		$submissionFullPath
 	)
 	
+	#$entry | Format-Table -Force *
 	$submission_id = $entry.'Submission ID'
 	$div_field = $entry.'Division'
 	$category = $div_field.Split(";")[0].trim()
 	$division = $div_field.Split(";")[1].trim()
 	$gender = $entry.'Skater 1 Gender:'
 	$music_fs_url = $entry.'FS/FD Music File'
-	$music_sp_url = $entry.'SD/SP/PD1 Music File'
+	$music_sp_url = $entry.'SP Music File'
 	$music_pd2_url = $entry.'PD2 Music File'
 	
-	Write-Host "Music FS URL: $music_fs_url"
 	if ($category -match 'Couple')
 	{
 		$name = $entry.'Skater 1 Name' + "_" + $entry.'Skater 2 Name';
@@ -342,6 +342,7 @@ function Publish-EntryMusicFiles
 		
 		if ($division -match 'Advanced Novice|Junior|Senior')
 		{
+			Write-Host "Splitting music_sp_url: '${music_sp_url}'"
 			$music_sp_file = [System.Web.HttpUtility]::UrlDecode($music_sp_url.Split("/")[-1]);
 			$music_sp_fullpath = [System.IO.Path]::Combine($submission_folder, $music_sp_file)
 			
@@ -353,18 +354,19 @@ function Publish-EntryMusicFiles
 			
 			if ($category -match 'Dance')
 			{
-				Publish-SkaterMusicFile -filename $music_fs_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "FS"
-				Publish-SkaterMusicFile -filename $music_sp_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "SP"
+				Publish-SkaterMusicFile -filename $music_fs_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "FD"
+				Publish-SkaterMusicFile -filename $music_sp_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "SD"
 			}
 			else
 			{
-				Publish-SkaterMusicFile -filename $music_fs_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "FD"
-				Publish-SkaterMusicFile -filename $music_sp_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "SD"
+				Publish-SkaterMusicFile -filename $music_fs_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "FS"
+				Publish-SkaterMusicFile -filename $music_sp_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "SP"
 			}
 			
 			if ([String]::IsNullOrEmpty($music_sp_file))
 			{
 				Write-Warning "WARNING: No SD/SP/PD1 Music file provided for $name in category '$category' division '$division'"
+				Write-Host "Music file: $music_sp_file"
 			}
 			else
 			{
@@ -376,7 +378,7 @@ function Publish-EntryMusicFiles
 			}
 			
 			# process the file even if it is nonexistent - the result will be a "NOTFOUND" file in the Music folder (so we get alerted)
-			Publish-SkaterMusicFile -filename $music_sp_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "SP"
+			#Publish-SkaterMusicFile -filename $music_sp_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "SP"
 		}
 		elseif ($category -match 'Dance')
 		{
@@ -629,40 +631,22 @@ function New-CertificateList
 	
 	if ($results.Count -gt 0)
 	{
-		Write-Host " - generating $($results.Count) Spring Comp Certificates."
-		$results | Sort-Object -Property "Division", "Surname", "Firstname" | Select-Object "Name", "Division" | export-csv -path $spring_comp_csv -Force -NoTypeInformation
+		Write-Host " - generating $($results.Count) Certificates."
+		$results | Sort-Object -Property "Division", "Surname", "Firstname" | Select-Object "Name", "Division" | export-csv -path $input_csv -Force -NoTypeInformation
 		if ($prompt)
 		{
-			$spring_comp_template = Find-Template -message "Select Spring Comp Certificate Template" -initial_dir $template_folder -default $certificate_template_spring_comp
+			$comp_template = Find-Template -message "Select Certificate Template" -initial_dir $template_folder -default $certificate_template
 		}
 		else
 		{
-			$spring_comp_template = Resolve-Path -Path "${template_folder}/${certificate_template_spring_comp}"
+			$comp_template = Resolve-Path -Path "${template_folder}/${certificate_template}"
 		}
-		Invoke-MailMerge -template $spring_comp_template -datasource $spring_comp_csv -destination $folder
+		Write-Host "COMP TEMPLATE: ${comp_template}"
+		Invoke-MailMerge -template $comp_template -datasource $input_csv -destination $folder
 	}
 	else
 	{
-		Write-Host " - no Spring Comp entries..."
-	}
-	
-	if ($results.Count -gt 0)
-	{
-		Write-Host " - generating $($results.Count) ACT Champs Certificates."
-		$results | Sort-Object -Property "Division", "Surname", "Firstname" | Select-Object "Name", "Division" | export-csv -path $act_champs_csv -Force -NoTypeInformation
-		if ($prompt)
-		{
-			$act_champs_template = Find-Template -message "Select ACT Champs Certificate Template" -initial_dir $template_folder -default $certificate_template_act_champs
-		}
-		else
-		{
-			$act_champs_template = Resolve-Path -Path "${template_folder}/${certificate_template_act_champs}"
-		}
-		Invoke-MailMerge -template $act_champs_template -datasource $act_champs_csv -destination $folder
-	}
-	else
-	{
-		Write-Host " - no ACT Champs entries..."
+		Write-Host " - no Competition entries found..."
 	}
 }
 
@@ -758,7 +742,7 @@ function New-SkatingSchedule
 			$warmup = 6
 			$performance_time = 4
 		}
-		Write-Host "Category: $category,Division: $division"
+		#Write-Host "Category: $category,Division: $division"
 		Add-Content -Path $schedule1 -Value "Category: $category,Division: $division"
 		
 		$count = $divhash.Item($div).Count
@@ -1506,7 +1490,7 @@ function New-PhotoPermissionList
 	)
 	
 	Write-Host "Generating Photo Permission List ($format)"
-	
+	Write-Host "FOLDER: '${folder}'"
 	if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
 	{
 		New-Item $folder -Type Directory | Out-Null
@@ -1565,7 +1549,7 @@ function New-ProofOfAgeAndMemberships
 		$name = $entry.'Skater 1 Name'
 		if (-not $list.ContainsKey($name))
 		{
-			Write-Host "Name1: '$name'"
+			Write-Host "    - $name"
 			$list.Add($name,
 				@(
 					$name,
@@ -1584,7 +1568,7 @@ function New-ProofOfAgeAndMemberships
 		{
 			if (-not $list.ContainsKey($name))
 			{
-				Write-Host "Name2: '$name'"
+				Write-Host "    - $name"
 				$list.Add($name,
 					@(
 						$name,
@@ -1639,14 +1623,15 @@ $schedule_folder    = [System.IO.Path]::Combine($comp_folder, "Schedule")
 Write-Host "Competition Folder: $comp_folder"
 write-host "Music Folder: $music_folder"
 
-$entries = Get-SubmissionEntries -url $google_sheet_url
+$entries = @()
+Get-SubmissionEntries -url $google_sheet_url | ForEach-Object { if ($_ -ne 0) { $entries += $_ } }
+
+Write-Host "Number of entries = $($entries.Count)`n" -ForegroundColor Yellow
 
 foreach ($entry in $entries)
 {
 	Publish-EntryMusicFiles -entry $entry -submissionFullPath $submissionFullPath -music_folder $music_folder
 }
-
-Write-Host "Number of entries = $($entries.Count)`n" -ForegroundColor Yellow
 
 New-PPCForms -entries $entries -folder $ppc_folder
 New-CertificateList -entries $entries -folder $certificate_folder
@@ -1659,7 +1644,7 @@ New-PaymentSpreadsheet -entries $entries -folder $comp_folder -format 'xlsx'
 New-SkaterEmailList -entries $entries -folder $comp_folder -format 'xlsx'
 New-CoachEmailList -entries $entries -folder $comp_folder -format 'xlsx'
 New-CoachSkatersList -entries $entries -folder $comp_folder -format 'xlsx'
-New-PhotoPermissionList -entries $entries -folder $eventFolder -format 'xlsx'
+New-PhotoPermissionList -entries $entries -folder $comp_folder -format 'xlsx'
 New-ProofOfAgeAndMemberships -entries $entries -folder $comp_folder -format 'xlsx'
 
 #Read-Host -Prompt "Press Enter to exit"
