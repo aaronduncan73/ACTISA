@@ -5,8 +5,13 @@
 	.DESCRIPTION
 		Processes JotForm submissions for Autumn Trophy
 	
+	.PARAMETER prompt
+		if the user should be prompted for folder/file locations
+
 	.EXAMPLE
-			PS C:\> .\process_autumn_trophy_submissions.ps1
+			process_autumn_trophy_submissions.ps1
+			process_autumn_trophy_submissions.ps1 -prompt $true
+			process_autumn_trophy_submissions.ps1 -prompt $false
 	
 	.NOTES
 		===========================================================================
@@ -16,6 +21,11 @@
 		Filename:     	process_autumn_trophy_submissions.ps1
 		===========================================================================
 #>
+param
+(
+	[bool]
+	$prompt = $true
+)
 
 [Reflection.Assembly]::LoadWithPartialName("System.Web") | Out-Null
 [Reflection.Assembly]::LoadWithPartialName("Microsoft.Office.Interop.Word") | Out-Null
@@ -40,7 +50,6 @@ $abbreviations = @{
     "Free Program"    = "FP";
     "Advanced Novice" = "AdvNov";
 }
-
 
 #
 # To link to the google spreadsheet:
@@ -1631,9 +1640,23 @@ function New-ProofOfAgeAndMemberships
 #------------------------          MAIN CONTROL          ------------------------
 #================================================================================
 
-# prompt the user to specify location
-$comp_folder     = Find-Folders -title "Select the Competition folder (default=$comp_folder)" -default $comp_folder
-$template_folder = Find-Folders -title "Select the MailMerge Template folder (default=$template_folder)" -default $template_folder
+if ($prompt)
+{
+	# prompt the user to specify location
+	$comp_folder = Find-Folders -title "Select the Competition folder (default = $comp_folder)" -default $comp_folder
+	$template_folder = Find-Folders -title "Select the MailMerge Template folder (default = $template_folder)" -default $template_folder
+}
+else
+{
+	if (!(Test-Path -Path $comp_folder -ErrorAction SilentlyContinue))
+	{
+		New-Item -ItemType Directory -Force -Path $comp_folder | Out-Null
+	}
+	if (!(Test-Path -Path $template_folder -ErrorAction SilentlyContinue))
+	{
+		New-Item -ItemType Directory -Force -Path $template_folder | Out-Null
+	}
+}
 
 Push-Location $comp_folder
 
