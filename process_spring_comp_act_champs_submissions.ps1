@@ -15,7 +15,6 @@
 	
 	.NOTES
 		===========================================================================
-		Created with: 	SAPIEN Technologies, Inc., PowerShell Studio 2018 v5.5.148
 		Created on:   	22/08/2019 10:59 AM
 		Created by:   	Aaron Duncan
 		Organization: 	ACTISA

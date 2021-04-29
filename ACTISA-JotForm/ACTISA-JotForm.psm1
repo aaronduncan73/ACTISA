@@ -97,7 +97,7 @@ function Import-SpreadsheetFile
 		[string]$format
 	)
 	
-	Write-Host "Import-SpreadsheetFile(): filename = '$filename' format = '$format'"
+	#Write-Host "Import-SpreadsheetFile(): filename = '$filename' format = '$format'"
 	$filepath = (Resolve-Path $filename).Path
 	
 	if ($format -eq 'xlsx')
@@ -146,7 +146,7 @@ function Import-XLSX
 		[string]$filename
 	)
 	
-	Write-Host "Import-XLSX(): filename = '$filename'"
+	#Write-Host "Import-XLSX(): filename = '$filename'"
 	
 	$filepath = (Resolve-Path $filename).Path
 	
@@ -307,7 +307,7 @@ function Invoke-MailMerge
 		
 		$word = New-Object -ComObject Word.Application
 		$word.Visible = $false
-		
+		#Write-Host "TEMPLATE: $template"
 		$Doc = $word.Documents.Open($template)
 		$Doc.MailMerge.OpenDataSource($datasource)
 		$Doc.MailMerge.Execute()
@@ -392,6 +392,7 @@ function Get-MusicFileDuration
 	)
 	
 	$duration = $null
+	#Write-Host "Getting duration for file: $filename"
 	if (Test-Path -Path "$filename" -PathType Leaf -ErrorAction SilentlyContinue)
 	{
 		$filepath = (Resolve-Path $filename).Path
