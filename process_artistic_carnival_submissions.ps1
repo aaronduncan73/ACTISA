@@ -61,7 +61,7 @@ $abbreviations = @{
 # the '2019 Carnival of Artistic Skating and TOI' form on the ACTISA account
 $google_sheet_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQKmBIRD1QL3swOhGIA21RYzNF9LPhgLx-s41uEWYsjCaHPYVRpuZqyBL0rFzuLnojt3ymPZQivLq3D/pub?output=xlsx'
 
-$template_folder = 'D:\Skating Templates';
+$template_folder = 'D:\JotForm MailMerge Templates';
 
 $Competition = "Carnival of Artistic Skating and TOI $(Get-Date -Format yyyy)"
 
@@ -88,23 +88,14 @@ if (!(Test-Path -Path $comp_folder))
 	.PARAMETER filename
 		A description of the filename parameter.
 	
-	.PARAMETER category
-		A description of the category parameter.
-	
 	.PARAMETER division
 		A description of the division parameter.
 	
-	.PARAMETER gender
-		A description of the gender parameter.
-	
-	.PARAMETER skatername
-		A description of the skatername parameter.
+	.PARAMETER name
+		Name of Skater(s) or Team
 	
 	.PARAMETER destination
 		A description of the destination parameter.
-	
-	.PARAMETER program
-		A description of the program parameter.
 	
 	.EXAMPLE
 		PS C:\> Publish-SkaterMusicFile
@@ -117,12 +108,9 @@ function Publish-SkaterMusicFile
 	param
 	(
 		$filename,
-		$category,
 		$division,
-		$gender,
-		$skatername,
-		$destination,
-		$program
+		$name,
+		$destination
 	)
 	
 	#
@@ -141,23 +129,7 @@ function Publish-SkaterMusicFile
 	#
 	# determine the destination music folder
 	#
-	$music_subdir = "$category - $division"
-	
-	if ($gender -ne $null)
-	{
-		if ($gender.Equals("Female"))
-		{
-			$music_subdir += " Ladies"
-		}
-		else
-		{
-			$music_subdir += " Mens"
-		}
-	}
-	else
-	{
-		Write-Warning "gender is null: category is $category"
-	}
+	$music_subdir = $division
 	
 	$music_dest = [System.IO.Path]::Combine($destination, $music_subdir)
 	
@@ -165,61 +137,20 @@ function Publish-SkaterMusicFile
 	# Calculate the new music filename
 	#
 	
-	$new_music_file = $division -replace "\(.*\)", ""
-	
-	if ($category.StartsWith("Aussie Skate"))
-	{
-		$new_music_file = "AS_${new_music_file}"
-	}
-	elseif ($category -match "Adult|Dance")
-	{
-		$extra = $category -replace "\(.*\)", ""
-		$new_music_file = "${extra}${new_music_file}"
-	}
-	
-	if ($category -match 'Couple')
-	{
-		$name = $entry.'Skater 1 Name' + " / " + $entry.'Skater 2 Name';
-		$member_num = $entry.'Skater 1 Membership Number' + " / " + $entry.'Skater 2 Membership Number';
-	}
-	
-	foreach ($key in $abbreviations.Keys)
-	{
-		$new_music_file = $new_music_file -replace $key, $abbreviations.Item($key)
-	}
-	
-	$new_music_file = $new_music_file -replace " ; ", "_" -replace " ", ""
-	
-	if ($category -match 'Singles' -and $division -match 'Advanced Novice|Junior|Senior')
-	{
-		if ($gender.Equals("Female"))
-		{
-			$new_music_file += "Ladies"
-		}
-		else
-		{
-			$new_music_file += "Men"
-		}
-	}
-	
-	if ((! $category.StartsWith("Aussie")) -and (! [String]::IsNullOrEmpty($program)))
-	{
-		$new_music_file += "_${program}"
-	}
-	
-	$new_music_file += "_${skatername}"
+	$divnum = $division.Split("-")[0].Split(" ")[1]
+	$new_music_file = "Division ${divnum} - ${name}"
 	
 	if ([String]::IsNullOrEmpty($music_duration))
 	{
-		$new_music_file = "BADFILE_${new_music_file}"
+		$new_music_file = "BADFILE - ${new_music_file}"
 	}
 	elseif ($music_duration -match "notfound")
 	{
-		$new_music_file = "NOTFOUND_${new_music_file}"
+		$new_music_file = "NOTFOUND - ${new_music_file}"
 	}
 	else
 	{
-		$new_music_file += "_${music_duration}"
+		$new_music_file += " - ${music_duration}"
 	}
 	
 	$new_music_file += $extension
@@ -248,9 +179,9 @@ function Publish-SkaterMusicFile
 		}
 		else
 		{
-			"Source Music File: $filename"
-			"Music Destination: $new_music_path"
-			""
+			#"Source Music File: $filename"
+			#"Music Destination: $new_music_path"
+			#""
 		}
 	}
 }
@@ -287,65 +218,50 @@ function Publish-EntryMusicFiles
 	)
 	
 	$submission_id = $entry.'Submission ID'
-	$div_field = $entry.'Division:';
-	$category = $div_field.Split("-", 2)[0].trim()
-	$division = $div_field.Split("-", 2)[1].trim()
-	$gender = $entry.'Skater 1 Gender'
-	$music_url = $entry.'Music File'
-	$music_sp_url = $entry.'SP Music File'
+	$division = $entry.'Division:'
 	
-	if ($category -match 'Couple')
+	$music_url = $entry.'Music File'
+	
+	$submission_folder = [System.IO.Path]::Combine($submissionFullPath, "${submission_id}")
+	
+	# half ice divisions don't have music file uploads
+	$music_file = [System.Web.HttpUtility]::UrlDecode($music_url.Split("/")[-1]);
+	$music_fullpath = [System.IO.Path]::Combine($submission_folder, $music_file)
+	$extension = [System.IO.Path]::GetExtension($music_file)
+	
+	if ((Test-Path -Path $submission_folder -ErrorAction SilentlyContinue) -eq $false)
 	{
-		$name = $entry.'Skater 1 Name' + "_" + $entry.'Skater 2 Name';
+		New-Item $submission_folder -Type Directory | Out-Null
+	}
+	
+	$divnum = [int]($division.Split("-")[0].Split(" ")[1])
+	
+	if ($divnum -eq 9)
+	{
+		$name = $entry.'Skater 1 Name' + " / " + $entry.'Skater 2 Name'
+	}
+	elseif ($divnum -gt 9)
+	{
+		# this is a Theatre On Ice division
+		$name = $entry.'Team Name:'
 	}
 	else
 	{
-		$name = ConvertTo-CapitalizedName -name $entry.'Skater 1 Name'
+		$name = $entry.'Skater 1 Name'
 	}
 	
-	$submission_folder =
-	(Resolve-Path "$([System.IO.Path]::Combine($submissionFullPath, "${submission_id}_${name}"))*").Path
-	
-	if ([string]::IsNullOrEmpty($submission_folder))
+	if ((Test-Path -Path $music_fullpath -ErrorAction SilentlyContinue) -eq $false)
 	{
-		$submission_folder = [System.IO.Path]::Combine($submissionFullPath, "${submission_id}_${name}-")
+		Write-Host "  - $name (downloading)"
+		# music file is missing, so download it
+		Get-WebFile -url $entry.'Music File' -destination $music_fullpath
 	}
-	
-	Write-Host "Name: $name"
-	
-	# half ice divisions don't have music file uploads
-	if (!$category.StartsWith("Aussie Skate (Half"))
+	else
 	{
-		$music_file = [System.Web.HttpUtility]::UrlDecode($music_url.Split("/")[-1]);
-		$music_fullpath = [System.IO.Path]::Combine($submission_folder, $music_file)
-		$extension = [System.IO.Path]::GetExtension($music_file)
-		
-		if ((Test-Path -Path $submission_folder -ErrorAction SilentlyContinue) -eq $false)
-		{
-			New-Item $submission_folder -Type Directory | Out-Null
-		}
-		#Write-Host "music url: $music_url"
-		#Write-Host "music fullpath: $music_fullpath"
-		
-		if ((Test-Path -Path $music_fullpath -ErrorAction SilentlyContinue) -eq $false)
-		{
-			# music file is missing, so download it
-			Get-WebFile -url $entry.'Music File' -destination $music_fullpath
-		}
-		
-		if ($division -match 'Advanced Novice|Junior|Senior')
-		{
-			Publish-SkaterMusicFile -filename $music_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "FP"
-		}
-		elseif ($category -match 'Dance')
-		{
-			Publish-SkaterMusicFile -filename $music_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "FD"
-		}
-		else
-		{
-			Publish-SkaterMusicFile -filename $music_fullpath -category $category -division $division -skatername $name -gender $gender -destination $music_folder -program "FS"
-		}
+		Write-Host "  - $name (already downloaded)"
 	}
+	
+	Publish-SkaterMusicFile -filename $music_fullpath -division $division -name $name -destination $music_folder
 }
 
 <#
@@ -375,6 +291,8 @@ function New-CertificateList
 		$folder
 	)
 	
+	Write-Host "Generating Certificates"
+	
 	if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
 	{
 		New-Item $folder -Type Directory | Out-Null
@@ -390,35 +308,21 @@ function New-CertificateList
 	}
 	$input_csv = [System.IO.Path]::Combine($folder, "certificate_inputs.csv")
 	
-	Write-Host "Input CSV file: $input_csv"
+	#Write-Host "Input CSV file: $input_csv"
 	
 	$results = @()
 	
 	$entries | ForEach-Object {
-		$category = $_.'Division:'.Split("-", 2)[0].trim()
-		$division = $_.'Division:'.Split("-", 2)[1].trim()
-		
-		Write-Host "Generating certificate for $name ($division)"
-		if ($category -match "Adult|Dance")
-		{
-			if ($category.Contains('('))
-			{
-				$cat_parts = $category.split('()')
-				$division = "$(${cat_parts}[1]) $(${cat_parts}[0]) - $division"
-			}
-			else
-			{
-				$division = "${category} ${division}"
-			}
-		}
-		
+		#$category = $_.'Division:'.Split("-", 2)[0].trim()
+		$division = $_.'Division:'
+		$divnum = [int]($division.Split("-")[0].Split(" ")[1])
 		
 		foreach ($name in $_.'Skater 1 Name', $_.'Skater 2 Name')
 		{
 			if (-not [String]::IsNullOrEmpty($name))
 			{
 				$CapitalisedName = ConvertTo-CapitalizedName -name $name
-				Write-Host "Name: $CapitalisedName"
+				Write-Host ("  - {0,-20}		($division)" -f $CapitalisedName)
 				
 				$results += New-Object -TypeName PSObject -Property @{
 					"Name"	   = $CapitalisedName
@@ -440,7 +344,7 @@ function New-CertificateList
 			if (-not [String]::IsNullOrEmpty($firstname))
 			{
 				$CapitalisedName = ConvertTo-CapitalizedName -name "$firstname $lastname"
-				Write-Host "Name: $CapitalisedName"
+				Write-Host ("  - {0,-20}		($division)" -f $CapitalisedName)
 				
 				$results += New-Object -TypeName PSObject -Property @{
 					"Name"	   = $CapitalisedName
@@ -450,7 +354,7 @@ function New-CertificateList
 		}
 	}
 	
-	Write-Host "Number of entries = $($entries.Count)"
+	Write-Host "Number of certificates = $($results.Count)"
 	
 	$results | Select-Object "Name", "Division" | Sort-Object -Property "Division", "Name" | Export-Csv -path $input_csv -Force -NoTypeInformation
 	
@@ -485,6 +389,7 @@ function New-SkatingSchedule
 		$entries,
 		$folder
 	)
+	Write-Host "Generating Skating Schedule"
 	
 	if ((Test-Path -Path $folder -ErrorAction SilentlyContinue) -eq $false)
 	{
@@ -536,17 +441,26 @@ function New-SkatingSchedule
 		"Warmup Time: ($num_warmup_groups x $warmup) = {0} minutes" -f ($num_warmup_groups * $warmup) | Add-Content -Path $schedule1
 		"Performance time = ($count x $performance_time) = {0} minutes " -f ($count * $performance_time) | Add-Content -Path $schedule1
 		
-		Add-Content -path $schedule1 -Value "Last Name,First Name,State,Coach Name,Other Coach Names,Music Title,Gender"
+		if ($div -match 'Theatre')
+		{
+			Add-Content -path $schedule1 -Value "Team Name,Team Manager,State,Coach Name,Other Coach Names,Music Title"
+		}
+		else
+		{
+			Add-Content -path $schedule1 -Value "Last Name,First Name,State,Coach Name,Other Coach Names,Music Title,Gender"
+		}
+		
 		
 		$divhash.Item($div) | ForEach-Object {
 			$num_segments = $_.'Number of Segments in Music'
-			if ($_.'Music Details (Segment 1)' -match 'Title: (.*) Artist:')
+			if ($_.'Music Details (Segment 1)' -match 'Title: (.*)')
 			{
 				$music_title = $Matches[1]
 			}
 			else
 			{
 				$music_title = '<NOT PROVIDED>'
+				Write-Host "failed to find music title.  music details = '$($_.'Music Details (Segment 1)')'"
 			}
 			
 			$coach_name = $_.'Primary Coach Name:'
@@ -555,7 +469,14 @@ function New-SkatingSchedule
 				$coach_name = $_.'Primary Coach Name: 2'
 			}
 			
-			"{0},{1},{2},{3},`"{4}`",`"{5}`",{6}" -f $_.'Last Name', $_.'First Name', $_.'Skater 1 State/Territory', $coach_name, $_.'Other Coach Names', $music_title.Trim(), $_.'Skater 1 Gender' | Add-Content -path $schedule1
+			if ($div -match 'Theatre')
+			{
+				"{0},{1},{2},{3},`"{4}`",`"{5}`"" -f $_.'Team Name:', $_.'Team Manager:', $_.'Team State:', $coach_name, $_.'Other Coach Names', $music_title.Trim() | Add-Content -path $schedule1
+			}
+			else
+			{
+				"{0},{1},{2},{3},`"{4}`",`"{5}`",{6}" -f $_.'Last Name', $_.'First Name', $_.'Skater 1 State/Territory', $coach_name, $_.'Other Coach Names', $music_title.Trim(), $_.'Skater 1 Gender' | Add-Content -path $schedule1
+			}
 		}
 		Add-Content -Path $schedule1 -Value ""
 		
@@ -649,8 +570,7 @@ function New-DivisionCountsSpreadsheet
 	
 	foreach ($division in $divhash.Keys | Sort-Object)
 	{
-		Write-Host "DIV: $division"
-		$divnum = $division.Split("-")[0].Split(" ")[1]
+		$divnum = [int]($division.Split("-")[0].Split(" ")[1])
 		Write-Host "Division Number: $divnum"
 		if ($divnum -lt 9)
 		{
@@ -662,8 +582,30 @@ function New-DivisionCountsSpreadsheet
 		}
 		else
 		{
-			Write-Warning "WARNING: Division Count Spreadsheet unimplemented for teams!"
-			$numSkaters = 24
+			$maxTeamSize = 0
+			foreach ($entry in $divhash[$division])
+			{
+				$members = @('Captain')
+				for ($i = 1; $i -lt 25; $i++)
+				{
+					$members += "Skater $i"
+				}
+				
+				$teamSize = 0
+				foreach ($member in $members)
+				{
+					$firstname = $entry."Team Members Details: >> $member >> First Name"
+					if (-not [String]::IsNullOrEmpty($firstname))
+					{
+						$teamSize++
+					}
+				}
+				if ($teamSize -gt $maxTeamSize)
+				{
+					$maxTeamSize = $teamSize
+				}
+			}
+			$numSkaters = $maxTeamSize
 		}
 		
 		$count = $divhash.Item($division).Count
@@ -823,8 +765,17 @@ function New-SkaterEmailList
 	$list = @{ }
 	foreach ($entry in $entries)
 	{
-		$name = $entry.'Skater 1 Name'
-		$email = $entry.'Skater 1 Contact E-mail:'
+		if ($entry.'Division:' -match 'Theatre')
+		{
+			$name = $entry.'Team Name:'
+			$email = $entry.'Team Manager Email:'
+		}
+		else
+		{
+			$name = $entry.'Skater 1 Name'
+			$email = $entry.'Skater 1 Contact E-mail'
+		}
+		
 		if (-not $list.ContainsKey($name))
 		{
 			$list.Add($name, $email)
@@ -934,29 +885,62 @@ function New-RegistrationList
 	$hash = @{ }
 	foreach ($entry in $entries)
 	{
-		$surname = ConvertTo-CapitalizedName -name $entry.'Last Name'
-		if (!$hash.ContainsKey($surname))
+		if ($entry.'Division:' -match 'Theatre on Ice')
 		{
-			$hash[$surname] = @{ }
+			$members = @('Captain')
+			for ($i = 1; $i -lt 25; $i++)
+			{
+				$members += "Skater $i"
+			}
+			
+			foreach ($member in $members)
+			{
+				$surname = $entry."Team Members Details: >> $member >> Last Name"
+				if (-not [String]::IsNullOrEmpty($surname))
+				{
+					$surname = ConvertTo-CapitalizedName -name $surname
+					if (-not $hash.ContainsKey($surname))
+					{
+						$hash[$surname] = @{ }
+					}
+					$firstname = $entry."Team Members Details: >> $member >> First Name"
+					if (-not [String]::IsNullOrEmpty($firstname))
+					{
+						$firstname = ConvertTo-CapitalizedName -name $entry."Team Members Details: >> $member >> First Name"
+						if (-not $hash[$surname].ContainsKey($firstname))
+						{
+							$hash[$surname].Add($firstname, $true)
+						}
+					}
+				}
+			}
 		}
-		$firstname = ConvertTo-CapitalizedName -name $entry.'First Name'
-		
-		if (-not $hash[$surname].ContainsKey($firstname))
+		else
 		{
-			$hash[$surname].Add($firstname, $true)
-		}
-		
-		if ($entry.'Division:' -match 'Dance')
-		{
-			$surname = ConvertTo-CapitalizedName -name $entry.'Skater 2 Name: (Last Name)'
+			$surname = ConvertTo-CapitalizedName -name $entry.'Last Name'
 			if (!$hash.ContainsKey($surname))
 			{
 				$hash[$surname] = @{ }
 			}
-			$firstname = ConvertTo-CapitalizedName -name $entry.'Skater 2 Name: (First Name)'
+			$firstname = ConvertTo-CapitalizedName -name $entry.'First Name'
+			
 			if (-not $hash[$surname].ContainsKey($firstname))
 			{
 				$hash[$surname].Add($firstname, $true)
+			}
+			
+			if ($entry.'Division:' -match 'Dance')
+			{
+				$surname = ConvertTo-CapitalizedName -name $entry.'Skater 2 Name: (Last Name)'
+				if (!$hash.ContainsKey($surname))
+				{
+					$hash[$surname] = @{ }
+				}
+				$firstname = ConvertTo-CapitalizedName -name $entry.'Skater 2 Name: (First Name)'
+				if (-not $hash[$surname].ContainsKey($firstname))
+				{
+					$hash[$surname].Add($firstname, $true)
+				}
 			}
 		}
 	}
@@ -1208,17 +1192,17 @@ function New-PhotoPermissionList
 	
 	$outfile = [System.IO.Path]::Combine($folder, "photo_permissions.${format}");
 	
-	$headers = @("Category", "Division", "Skater 1 Name", "Skater 2 Name", "ACTISA granted permission to use photos")
+	$headers = @("Division", "Skater 1 Name", "Skater 2 Name", "ACTISA granted permission to use photos")
 	$rows = @()
 	foreach ($entry in $entries)
 	{
 		$rows += (@{
 				'border' = $true;
-				'values' = @($category,
+				'values' = @(
 					$entry.'Division:',
 					$entry.'Skater 1 Name',
 					$entry.'Skater 2 Name',
-					$entry.'I give permission for the Australian Capital Territory Ice Skating Association (ACTISA) to take photographs of myself/my child, and use the footage for promotional purposes on the official ACTISA website and social media.'
+					$entry.'I give permission for the Australian Capital Territory Ice Skating Association (ACTISA) to take photographs of myself/my child, and use the footage for promotional purposes on the official ACTISA website.'
 				)
 			})
 	}
@@ -1272,43 +1256,71 @@ function New-MembershipAndPOASpreadsheet
 	foreach ($entry in $entries)
 	{
 		$division = $entry.'Division:'
-		Write-Host "Division: '$division'"
 		
-		$name = $entry.'Skater 1 Name'
-		if (-not $list.ContainsKey($name))
+		if ($division -match 'Theatre on Ice')
 		{
-			Write-Host "Name1: '$name'"
-			$list.Add($name,
-				@(
-					$name,
-					$entry.'Skater 1 State/Territory:',
-					$division,
-					$entry.'Primary Coach Name:',
-					$entry.'Other Coach Names:',
-					$entry.'Skater 1 Membership Number:'
-					$entry.'Skater 1 Proof Of Age (POA):'
-				))
+			$members = @('Captain')
+			for ($i = 1; $i -lt 25; $i++)
+			{
+				$members += "Skater $i"
+			}
+			
+			foreach ($member in $members)
+			{
+				$surname   = $entry."Team Members Details: >> $member >> Last Name"
+				$firstname = $entry."Team Members Details: >> $member >> First Name"
+				$name = ConvertTo-CapitalizedName -name "$firstname $surname"
+				
+				if ($name -ne " " -and -not $list.ContainsKey($name))
+				{
+					$list.Add($name,
+						@(
+							$name,
+							$entry.'Team State:',
+							$division,
+							$entry.'Primary Coach Name:',
+							$entry.'Other Coach Names:',
+							$entry."Team Members Details: >> $member >> Membership No"
+							$entry."Team Members Details: >> $member >> POA"
+						))
+				}
+			}
 		}
-		
-		$name = $entry.'Skater 2 Name'
-		if (![string]::IsNullOrEmpty($name))
+		else
 		{
+			$name = $entry.'Skater 1 Name'
 			if (-not $list.ContainsKey($name))
 			{
-				Write-Host "Name2: '$name'"
 				$list.Add($name,
 					@(
 						$name,
-						$entry.'Skater 2 State/Territory:',
+						$entry.'Skater 1 State/Territory',
 						$division,
 						$entry.'Primary Coach Name:',
-						$entry.'Other Coach Names:',
-						$entry.'Skater 2 Membership Number:'
-						$entry.'Skater 2 Proof Of Age (POA):'
+						$entry.'Other Coach Names',
+						$entry.'Skater 1 Membership Number'
+						$entry.'Skater 1 Proof Of Age (POA)'
 					))
 			}
+			
+			$name = $entry.'Skater 2 Name'
+			if (![string]::IsNullOrEmpty($name))
+			{
+				if (-not $list.ContainsKey($name))
+				{
+					$list.Add($name,
+						@(
+							$name,
+							$entry.'Skater 2 State/Territory',
+							$division,
+							$entry.'Primary Coach Name:',
+							$entry.'Other Coach Names',
+							$entry.'Skater 2 Membership Number'
+							$entry.'Skater 2 Proof Of Age (POA)'
+						))
+				}
+			}
 		}
-		
 	}
 	
 	$headers = @('Name', 'State', 'Division', 'Primary Coach', 'Other Coaches', 'Membership #', 'POA')
@@ -1372,6 +1384,7 @@ foreach ($entry in (Get-SubmissionEntries -url $google_sheet_url))
 	}
 }
 
+Write-Host "Processing Music Files"
 foreach ($entry in $entries)
 {
 	Publish-EntryMusicFiles -entry $entry -submissionFullPath $submissionFullPath -music_folder $music_folder
